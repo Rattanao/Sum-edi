@@ -137,7 +137,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29k</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29l</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -164,7 +164,7 @@ const RE_HAL = /HEUNG[\s-]*A\b/i;
 const AGENT1 = "HEUNG A LINE CO., LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD.";
 const AGENT2 = "HEUNG A LINE CO.,LTD C/O HEUNG-A SHIPPING (THAILAND) CO.,LTD.";
 const SIG_KEY = "sum-edi-signature", STAFF_KEY = "sum-edi-staff";
-const STAFF = { name: "MISS RATTANA", position: "Import Documentation", tel: "02-059 6253 (Direct)" };
+const STAFF = { name: "MISS RATTANA", position: "Document Inbound", tel: "02-059 6253 (Direct)" };
 const $ = id => document.getElementById(id);
 const escapeHtml = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const num = t => parseFloat(String(t).replace(/,/g, ""));
@@ -655,6 +655,7 @@ async function takeSig(files) {
 function loadStaff() {
   let s = STAFF;
   try { s = { ...STAFF, ...JSON.parse(store.get(STAFF_KEY) || "{}") }; } catch {}
+  if (s.position === "Import Documentation") s.position = STAFF.position;   // old default -> new default
   $("stName").value = s.name; $("stPos").value = s.position; $("stTel").value = s.tel;
 }
 let staffTimer = null;

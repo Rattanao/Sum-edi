@@ -4,7 +4,7 @@ TRANSHIPMENT, EMPTY), add the SOC containers from CNTRS (containers in CNTRS tha
 and write SUMMARY.pdf + SUM-EDI.pdf.
 
 usage: python sum_mf.py [job folder | MF file] [output folder] [--cntrs FILE] [--gate 2|8]
-                        [--name "MISS RATTANA"] [--position "Import Documentation"] [--tel "02-059 6253 (Direct)"]
+                        [--name "MISS RATTANA"] [--position "Document Inbound"] [--tel "02-059 6253 (Direct)"]
   job folder (default: current folder): files are looked up in <job>/input, then <job>
   MF and CNTRS may each be Excel (.xls/.xlsx) or PDF, and may be split over several files
   output folder default: <job>/output
@@ -35,7 +35,7 @@ GATES = {"2": "(ESCO GATE 2)", "8": "(TIFFA GATE 8)"}  # the only Latkrabang gat
 # SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 SOC_STOP = {"AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
             "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"}
-STAFF = dict(name="MISS RATTANA", position="Import Documentation", tel="02-059 6253 (Direct)")
+STAFF = dict(name="MISS RATTANA", position="Document Inbound", tel="02-059 6253 (Direct)")
 
 
 def input_files(d):

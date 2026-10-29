@@ -55,7 +55,7 @@ pip install -r requirements.txt
 
 ผลลัพธ์อยู่ที่ `output/SUM-EDI.pdf` และ `output/SUMMARY.pdf`
 
-เปลี่ยนชื่อผู้จัดทำ: `python -X utf8 scripts/sum_mf.py . --name "MISS ..." --position "Import Documentation" --tel "02-059 ...."`
+เปลี่ยนชื่อผู้จัดทำ: `python -X utf8 scripts/sum_mf.py . --name "MISS ..." --position "Document Inbound" --tel "02-059 ...."`
 ระบุไฟล์เอง: `python -X utf8 scripts/sum_mf.py "D:\งาน\MANIFEST.xls" "D:\งาน\output" --cntrs "D:\งาน\CNTRS.xls"`
 
 ## ใช้กับ Claude Code

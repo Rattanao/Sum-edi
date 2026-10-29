@@ -43,7 +43,7 @@ DELIVERY row of each B/L, in this order (rows with no containers and no B/L are 
 - Weight and packages = sum of the B/Ls in the row. The table's GRAND TOTAL must equal the MF **GRAND TOTAL**; the script prints OK / MISMATCH.
 - SUM-EDI form: AGENT NAME / TAX ID / VESSEL (as in the MF, e.g. `HEUNG-A BANGKOK 2612N`) / DISCHARGE (all four values start at the same x), table DELIVERY | TOTAL CNTRS (`n X 20'  n X 40'`) | TOTAL B/L | TOTAL GROSS WEIGHT | TOTAL PKGS, one blank row, `GRAND TOTAL n CNTRS` (`-` for zero B/L / weight). Footer `DATA SUBMITTED TO THE PORT BY ...` 1. EDI 2. E-MAIL and the staff block (name / position / TEL). Long text is drawn smaller to stay inside A4.
 - SUMMARY.pdf (vessel written `NAME V.VOY`): one page per DELIVERY row that has B/L, in the SUM-EDI order. The port of discharge row (THLCH / THBKK) → `<PORT>`; transit countries → `*CARGO INTRANSIT TO <COUNTRY> P.D.R. VIA <PORT>`; any other row → `<PORT> / <full name>`: THLKR `LATKRABANG <gate>`, THBMT `BANGKOK MODERN TERMINAL`, THSCT `SIAM CONTAINER TERMINAL`, THBKK `BANGKOK`. Gate (`--gate`, web: GATE select, per job): `2` → `(ESCO GATE 2)` (default), `8` → `(TIFFA GATE 8)`; no other gates. EMPTY and SOC have no page.
-- Staff block default MISS RATTANA / Import Documentation / 02-059 6253 (Direct); other staff: `--name`, `--position`, `--tel` (web: the three fields, kept per browser).
+- Staff block default MISS RATTANA / Document Inbound / 02-059 6253 (Direct); other staff: `--name`, `--position`, `--tel` (web: the three fields, kept per browser).
 - Signature: `assets/signature.png` above the dotted line on every SUMMARY page. Local only (git-ignored, never pushed).
 
 ## Steps
