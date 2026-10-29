@@ -31,7 +31,7 @@ TRANSITRE = re.compile(r"TRANSIT\s+TO\s+(" + "|".join(sorted(TRANSIT)) + r")\b")
 # SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the gate (--gate)
 PLACE = {"THLKR": "LATKRABANG (GATE 2)", "THBMT": "BANGKOK MODERN TERMINAL", "THSCT": "SIAM CONTAINER TERMINAL",
          "THBKK": "BANGKOK"}
-GATES = {"8": "(TLC GATE 8)", "9": "(ESCO GATE 2)"}
+GATES = {"8": "(TLC GATE 8)", "9": "(ESCO GATE 9)"}
 # SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 SOC_STOP = {"AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
             "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"}
@@ -350,7 +350,7 @@ def summary_page(doc, vessel_name, port, agent, left, place, gw, pkg, double=Fal
 
 
 def gate_text(gate):
-    """GATE field -> text after LATKRABANG: "8" -> (TLC GATE 8), "9" -> (ESCO GATE 2), empty -> (GATE 2)"""
+    """GATE field -> text after LATKRABANG: "8" -> (TLC GATE 8), "9" -> (ESCO GATE 9), empty -> (GATE 2)"""
     g = (gate or "").strip().upper()
     if not g: return "(GATE 2)"
     if g in GATES: return GATES[g]
@@ -447,7 +447,7 @@ def main():
     ap.add_argument("job", nargs="?", default=".")
     ap.add_argument("out", nargs="?")
     ap.add_argument("--cntrs")
-    ap.add_argument("--gate", default="", help='LATKRABANG gate: 8 = (TLC GATE 8), 9 = (ESCO GATE 2), or any text')
+    ap.add_argument("--gate", default="", help='LATKRABANG gate: 8 = (TLC GATE 8), 9 = (ESCO GATE 9), or any text')
     for k, v in STAFF.items(): ap.add_argument("--" + k, default=v)
     a = ap.parse_args()
     mf, cntrs, out = find_files(a.job, a.cntrs)

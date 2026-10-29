@@ -101,10 +101,10 @@
       <div><label class="t" for="stTel">เบอร์โทร</label><input type="text" id="stTel" autocomplete="off"></div>
     </div>
     <div class="staff">
-      <div><label class="t" for="gate">GATE ลาดกระบัง <small>หน้า SUMMARY ของ THLKR · 8 = TLC GATE 8 · 9 = ESCO GATE 2 · หรือพิมพ์เอง</small></label>
+      <div><label class="t" for="gate">GATE ลาดกระบัง <small>หน้า SUMMARY ของ THLKR · 8 = TLC GATE 8 · 9 = ESCO GATE 9 · หรือพิมพ์เอง</small></label>
         <input type="text" id="gate" list="gateList" autocomplete="off" placeholder="ว่าง = (GATE 2)">
-        <datalist id="gateList"><option value="8">(TLC GATE 8)</option><option value="9">(ESCO GATE 2)</option></datalist></div>
-      <div><label class="t">จะแสดงในเอกสาร</label><div id="gateShow" style="padding:8px 0;font-weight:600"></div></div>
+        <datalist id="gateList"><option value="8">(TLC GATE 8)</option><option value="9">(ESCO GATE 9)</option></datalist></div>
+      <div><label class="t">จะแสดงในเอกสาร</label><div style="display:flex;gap:12px;align-items:center"><span id="gateShow" style="padding:8px 0;font-weight:600"></span><button id="process" disabled>Process</button></div></div>
     </div>
     <p class="rules">
       แยกตาม <b>DELIVERY</b> จาก CNTRS (<code>Port Of Delivery</code> และ SHED NUMBER):
@@ -133,7 +133,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29g</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29h</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -150,8 +150,8 @@ const TRANSIT = new Set(["MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VI
 const RE_TRANSIT = new RegExp(`TRANSIT\\s+TO\\s+(${[...TRANSIT].join("|")})\\b`);
 // SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the GATE field
 const PLACE = { THLKR: "LATKRABANG (GATE 2)", THBMT: "BANGKOK MODERN TERMINAL", THSCT: "SIAM CONTAINER TERMINAL", THBKK: "BANGKOK" };
-const GATES = { "8": "(TLC GATE 8)", "9": "(ESCO GATE 2)" };
-// GATE field -> text after LATKRABANG: "8" -> (TLC GATE 8), "9" -> (ESCO GATE 2), empty -> (GATE 2)
+const GATES = { "8": "(TLC GATE 8)", "9": "(ESCO GATE 9)" };
+// GATE field -> text after LATKRABANG: "8" -> (TLC GATE 8), "9" -> (ESCO GATE 9), empty -> (GATE 2)
 function gateText(gate) {
   const g = (gate || "").trim().toUpperCase();
   if (!g) return "(GATE 2)";
@@ -669,7 +669,7 @@ $("gate").oninput = () => { showGate(); clearTimeout(staffTimer); staffTimer = s
 showGate();
 
 // ---------- events ----------
-function update() { $("clear").disabled = !(files.length || report); }
+function update() { $("clear").disabled = !(files.length || report); $("process").disabled = !mfFiles().length; }
 function clearAll() {
   files = []; report = null; $("fileMf").value = ""; $("msg").textContent = "";
   $("mfText").innerHTML = "ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b>";
@@ -687,6 +687,7 @@ wire("dropMf", "fileMf", takeFiles);
 wire("dropSig", "fileSig", takeSig);
 $("clearSig").onclick = () => { store.del(SIG_KEY); showSig(); run(); };
 $("clear").onclick = clearAll;
+$("process").onclick = () => { clearTimeout(staffTimer); run(); };
 $("tbody").onclick = e => { const tr = e.target.closest("tr.g"); if (tr) $("bl" + tr.dataset.i)?.classList.toggle("hidden"); };
 $("dlEdi").onclick = () => save(report.edi, "SUM-EDI.pdf");
 $("dlSum").onclick = () => save(report.sum, "SUMMARY.pdf");
