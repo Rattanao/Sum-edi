@@ -136,9 +136,9 @@ const RE_CN = /\b[A-Z]{4}\d{7}\b/g;
 const COUNTRY = { MM: "MYANMAR", LA: "LAOS", MY: "MALAYSIA", KH: "CAMBODIA", VN: "VIETNAM", CN: "CHINA" };
 const SHED_GROUP = { "0332": "LKR" };          // any other shed = the main port
 const PORTS = { "LAEM CHABANG": ["LCH", "LCH"], "BANGKOK": ["BKK", "BANGKOK"] };
-const LABEL = { LCH: "LCH", BKK: "BANGKOK", LKR: "LKB (GATE2)" };
+const LABEL = { LCH: "LCH", BKK: "BANGKOK", LKR: "LKB (GATE2)", EMPTY: "EMPTY" };
 const ORDER = ["LCH", "BKK", "LKR", "MYANMAR", "LAOS", "MALAYSIA"];
-// words that end the short SOC owner name: "BEN LINE AGENCIES (THAILAND) LTD." -> "BEN LINE"
+// SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 const SOC_STOP = new Set(["AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
   "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"]);
 const RE_HAL = /HEUNG[\s-]*A\b/i;
@@ -224,7 +224,7 @@ function readCntrs(bytes) {
 function socOwner(consignee) {
   const words = [];
   for (const w of consignee.toUpperCase().split(/\s+/).filter(Boolean)) { if (SOC_STOP.has(w)) break; words.push(w); }
-  return words.join(" ") || consignee.trim() || "SOC";
+  return words[0] || consignee.trim().split(/\s+/)[0] || "SOC";
 }
 
 function summarize(bls, main, cn) {
@@ -241,12 +241,25 @@ function summarize(bls, main, cn) {
              gw: Math.round(nos.reduce((s, n) => s + bls[n].gw, 0) * 1000) / 1000, pkg: nos.reduce((s, n) => s + bls[n].pkg, 0) };
   });
   const inMf = new Set(Object.values(bls).flatMap(b => b.cntrs));
-  const socMap = {};
-  // not in the manifest: HEUNG A empties (4=MTY) get their own line, everything else goes into ***SOC***
-  for (const [c, x] of Object.entries(cn)) if (!inMf.has(c))
-    (socMap[`${x.empty && RE_HAL.test(x.consignee) ? socOwner(x.consignee) : "***SOC***"}|${x.size}`] ||= []).push(c);
+  // containers in CNTRS but not in the manifest:
+  //   HEUNG A, not empty -> counted in the main port row; HEUNG A empty (4=MTY) -> EMPTY row in the table;
+  //   any other owner -> ***SOC*** lines under TOTAL
+  const extra = [], empty = [], socMap = {};
+  for (const [c, x] of Object.entries(cn)) {
+    if (inMf.has(c)) continue;
+    if (!RE_HAL.test(x.consignee)) (socMap[`${socOwner(x.consignee)}|${x.size}`] ||= []).push(c);
+    else (x.empty ? empty : extra).push(c);
+  }
+  const count = cs => ({ cntrs: cs.length, n20: cs.filter(c => size[c] === 20).length, n40: cs.filter(c => size[c] === 40).length });
+  if (extra.length) {
+    let m = summ.find(x => x.g === main);
+    if (!m) summ.unshift(m = { g: main, nos: [], bls: 0, cntrs: 0, n20: 0, n40: 0, gw: 0, pkg: 0 });
+    const k = count(extra);
+    m.cntrs += k.cntrs; m.n20 += k.n20; m.n40 += k.n40; m.extra = extra.sort();
+  }
+  if (empty.length) summ.push({ g: "EMPTY", empty: true, nos: empty.sort(), bls: 0, gw: 0, pkg: 0, ...count(empty) });
   const soc = Object.entries(socMap).map(([k, cs]) => { const [owner, sz] = k.split("|"); return { owner, size: +sz, cntrs: cs.sort() }; })
-    .sort((a, b) => (a.owner === "***SOC***") - (b.owner === "***SOC***") || a.owner.localeCompare(b.owner) || a.size - b.size);
+    .sort((a, b) => a.owner.localeCompare(b.owner) || a.size - b.size);
   return { summ, soc,
            nosize: [...inMf].filter(c => !(c in size)).sort(),
            notInCntrs: Object.keys(cn).length ? [...inMf].filter(c => !(c in cn)).sort() : [] };
@@ -342,9 +355,11 @@ async function buildSumEdi(vessel, summ, T, soc, staff) {
     p.text(X[0] - 2, y, LABEL[x.g] || x.g, 8.5, { font: fonts.b, right: true, max: 90 });
     if (x.n20) p.text(185, y, `${x.n20}  X 20'`, 8.5, { right: true });
     if (x.n40) p.text(258, y, `${x.n40}  X 40'`, 8.5, { right: true });
-    p.text(300, y, String(x.bls), 8.5, { right: true });
-    p.text(412, y, f3(x.gw), 8.5, { right: true });
-    p.text(514, y, f0(x.pkg), 8.5, { right: true });
+    if (!x.empty) {
+      p.text(300, y, String(x.bls), 8.5, { right: true });
+      p.text(412, y, f3(x.gw), 8.5, { right: true });
+      p.text(514, y, f0(x.pkg), 8.5, { right: true });
+    }
     y += rh;
   }
   const yt = body + rh * nrows + 15;
@@ -355,8 +370,10 @@ async function buildSumEdi(vessel, summ, T, soc, staff) {
   p.text(412, yt, f3(T.gw), 8.5, { right: true });
   p.text(514, yt, f0(T.pkg), 8.5, { right: true });
   let yb = yt + 30;
-  if (soc.length) {                               // SOC containers: not in the manifest, own lines
+  if (soc.length) {                               // SOC containers: other owners, not in the manifest
     const B = { font: fonts.b };
+    p.text(53, yb, "***SOC***", 8, B);
+    yb += 20;
     soc.forEach((s, i) => {
       const ys = yb + i * 16;
       p.text(118, ys, s.owner, 8, { ...B, right: true, max: 70 });
@@ -399,7 +416,7 @@ async function run() {
                 gw: Math.round(summ.reduce((s, x) => s + x.gw, 0) * 1000) / 1000, pkg: summ.reduce((s, x) => s + x.pkg, 0) };
     const vname = vessel.replace(/\s+(\S+)$/, " V.$1");
     report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs,
-               edi: await buildSumEdi(vname, summ, T, soc, staffNow()), sum: await buildSummary(vname, port, main, summ) };
+               edi: await buildSumEdi(vname, summ, T, soc, staffNow()), sum: await buildSummary(vname, port, main, summ.filter(x => !x.empty)) };
     render();
   } catch (err) {
     report = null; $("result").classList.add("hidden");
@@ -421,9 +438,11 @@ async function render() {
     `<div class="k">ลายเซ็น</div><div class="${store.get(SIG_KEY) ? "ok" : "ng"}">${store.get(SIG_KEY) ? "ใส่แล้ว" : "ไม่มี"}</div>`;
   $("tbody").innerHTML = summ.map((x, i) =>
     `<tr class="g" data-i="${i}" title="คลิกเพื่อดู B/L"><td class="b">${escapeHtml(LABEL[x.g] || x.g)}</td><td>${x.n20 || ""}</td><td>${x.n40 || ""}</td>` +
-    `<td>${x.cntrs}</td><td>${x.bls}</td><td class="n">${f3(x.gw)}</td><td class="n">${f0(x.pkg)}</td></tr>` +
-    `<tr class="bls hidden" id="bl${i}"><td colspan="7">${x.nos.join(", ")}</td></tr>`).join("") +
+    (x.empty ? `<td>${x.cntrs}</td><td></td><td></td><td></td></tr>`
+             : `<td>${x.cntrs}</td><td>${x.bls}</td><td class="n">${f3(x.gw)}</td><td class="n">${f0(x.pkg)}</td></tr>`) +
+    `<tr class="bls hidden" id="bl${i}"><td colspan="7">${x.nos.join(", ")}${x.extra ? `<br>HEUNG A ไม่มีใน MF: ${x.extra.join(", ")}` : ""}</td></tr>`).join("") +
     `<tr class="total"><td>TOTAL</td><td></td><td></td><td>${T.cntrs}</td><td>${T.bls}</td><td class="n">${f3(T.gw)}</td><td class="n">${f0(T.pkg)}</td></tr>` +
+    (soc.length ? `<tr class="soc"><td colspan="7">***SOC***</td></tr>` : "") +
     soc.map((s, i) =>
       `<tr class="soc g" data-i="s${i}" title="คลิกเพื่อดูเลขตู้"><td>${escapeHtml(s.owner)}</td><td>${s.size === 20 ? s.cntrs.length : ""}</td><td>${s.size === 40 ? s.cntrs.length : ""}</td>` +
       `<td>${s.cntrs.length}</td><td colspan="3">[SUM-EDI, MANIFEST AS PER ATTACHED]</td></tr>` +

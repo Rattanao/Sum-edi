@@ -21,9 +21,9 @@ num = lambda t: float(t.replace(",", ""))
 COUNTRY = {"MM": "MYANMAR", "LA": "LAOS", "MY": "MALAYSIA", "KH": "CAMBODIA", "VN": "VIETNAM", "CN": "CHINA"}
 SHED_GROUP = {"0332": "LKR"}  # any other shed = the main port
 PORTS = {"LAEM CHABANG": ("LCH", "LCH"), "BANGKOK": ("BKK", "BANGKOK")}  # port of discharge -> (code, label)
-LABEL = {"LCH": "LCH", "BKK": "BANGKOK", "LKR": "LKB (GATE2)"}
+LABEL = {"LCH": "LCH", "BKK": "BANGKOK", "LKR": "LKB (GATE2)", "EMPTY": "EMPTY"}
 ORDER = ["LCH", "BKK", "LKR", "MYANMAR", "LAOS", "MALAYSIA"]
-# words that end the short SOC owner name: "BEN LINE AGENCIES (THAILAND) LTD." -> "BEN LINE"
+# SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 SOC_STOP = {"AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
             "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"}
 STAFF = dict(name="MISS RATTANA", position="Import Documentation", tel="02-059 6253 (Direct)")
@@ -105,7 +105,7 @@ def soc_owner(consignee):
     for w in consignee.upper().split():
         if w in SOC_STOP: break
         words.append(w)
-    return " ".join(words) or consignee.strip() or "SOC"
+    return words[0] if words else (consignee.split() or ["SOC"])[0]
 
 
 def group_of(b, main):
@@ -130,11 +130,25 @@ def summarize(bls, main, cn_list):
                          gw=round(sum(bls[n]["gw"] for n in nos), 3), pkg=sum(bls[n]["pkg"] for n in nos)))
     in_mf = {c for b in bls.values() for c in b["cntrs"]}
     soc = {}
-    # not in the manifest: HEUNG A empties (4=MTY) get their own line, everything else goes into ***SOC***
+    # containers in CNTRS but not in the manifest:
+    #   HEUNG A, not empty -> counted in the main port row; HEUNG A empty (4=MTY) -> EMPTY row in the table;
+    #   any other owner -> ***SOC*** lines under TOTAL
+    extra, empty_l = [], []
     for c, (sz, cons, empty) in cn_list.items():
-        if c not in in_mf: soc.setdefault((soc_owner(cons) if empty and HALRE.search(cons) else "***SOC***", sz), []).append(c)
+        if c in in_mf: continue
+        if not HALRE.search(cons): soc.setdefault((soc_owner(cons), sz), []).append(c)
+        else: (empty_l if empty else extra).append(c)
+    count = lambda cs: dict(cntrs=len(cs), n20=sum(size.get(c) == "20'" for c in cs), n40=sum(size.get(c) == "40'" for c in cs))
+    if extra:
+        m = next((x for x in summ if x["g"] == main), None)
+        if m is None:
+            m = dict(g=main, nos=[], bls=0, cntrs=0, n20=0, n40=0, gw=0.0, pkg=0); summ.insert(0, m)
+        k = count(extra)
+        for f in ("cntrs", "n20", "n40"): m[f] += k[f]
+        m["extra"] = sorted(extra)
+    if empty_l: summ.append(dict(g="EMPTY", empty=True, nos=sorted(empty_l), bls=0, gw=0.0, pkg=0, **count(empty_l)))
     soc = sorted((dict(owner=o, size=sz, cntrs=sorted(cs)) for (o, sz), cs in soc.items()),
-                 key=lambda s: (s["owner"] == "***SOC***", s["owner"], s["size"]))
+                 key=lambda s: (s["owner"], s["size"]))
     nosize = sorted(c for c in in_mf if c not in size)
     not_in_cntrs = sorted(in_mf - set(cn_list)) if cn_list else []
     return summ, soc, nosize, not_in_cntrs
@@ -219,9 +233,10 @@ def write_sum_edi(path, vessel_name, summ, T, soc, staff):
         text(pg, X[0] - 2, y, LABEL.get(x["g"], x["g"]), 8.5, right=True, font="thb", maxw=90)
         if x["n20"]: text(pg, 185, y, f"{x['n20']}  X 20'", 8.5, right=True, font="th")
         if x["n40"]: text(pg, 258, y, f"{x['n40']}  X 40'", 8.5, right=True, font="th")
-        text(pg, 300, y, f"{x['bls']}", 8.5, right=True, font="th")
-        text(pg, 412, y, f"{x['gw']:,.3f}", 8.5, right=True, font="th")
-        text(pg, 514, y, f"{x['pkg']:,}", 8.5, right=True, font="th")
+        if not x.get("empty"):
+            text(pg, 300, y, f"{x['bls']}", 8.5, right=True, font="th")
+            text(pg, 412, y, f"{x['gw']:,.3f}", 8.5, right=True, font="th")
+            text(pg, 514, y, f"{x['pkg']:,}", 8.5, right=True, font="th")
         y += rh
     yt = body + rh * nrows + 15
     pg.draw_line((X[0], yt - 15), (X[-1], yt - 15), width=0.7); pg.draw_line((X[0], yt + 7), (X[-1], yt + 7), width=0.7)
@@ -231,7 +246,9 @@ def write_sum_edi(path, vessel_name, summ, T, soc, staff):
     text(pg, 412, yt, f"{T['gw']:,.3f}", 8.5, right=True, font="th")
     text(pg, 514, yt, f"{T['pkg']:,}", 8.5, right=True, font="th")
     yb = yt + 30
-    if soc:                                          # SOC containers: not in the manifest, own lines
+    if soc:                                          # SOC containers: other owners, not in the manifest
+        text(pg, 53, yb, "***SOC***", 8, font="thb")
+        yb += 20
         for i, s in enumerate(soc):
             ys = yb + i * 16
             text(pg, 118, ys, s["owner"], 8, right=True, font="thb", maxw=70)
@@ -277,13 +294,15 @@ def main():
              gw=round(sum(x["gw"] for x in summ), 3), pkg=sum(x["pkg"] for x in summ))
     vessel_name = re.sub(r"\s+(\S+)$", r" V.\1", vessel)
     staff = dict(name=a.name, position=a.position, tel=a.tel)
-    write_summary(os.path.join(out, "SUMMARY.pdf"), vessel_name, port, main_code, summ)
+    write_summary(os.path.join(out, "SUMMARY.pdf"), vessel_name, port, main_code, [x for x in summ if not x.get("empty")])
     write_sum_edi(os.path.join(out, "SUM-EDI.pdf"), vessel_name, summ, T, soc, staff)
 
     print(f"MF: {mf}\nCNTRS: {cntrs or '- (no SOC check)'}\nVESSEL: {vessel_name}   PORT: {port}")
     for x in summ:
         print(f"{LABEL.get(x['g'], x['g']):12} {x['n20']:>3}x20' {x['n40']:>3}x40' BL {x['bls']:>3} {x['gw']:>14,.3f} KGS {x['pkg']:>7,} PKGS")
+        if x.get("extra"): print(f"             + HEUNG A not in MF: {', '.join(x['extra'])}")
     print(f"TOTAL        {T['cntrs']} CNTRS  BL {T['bls']}  {T['gw']:,.3f}  {T['pkg']:,}")
+    if soc: print("***SOC***")
     for s in soc: print(f"{s['owner']:12} {s['size']} : {len(s['cntrs'])} CNTRS")
     if soc: print(f"GRAND TOTAL  {T['cntrs'] + sum(len(s['cntrs']) for s in soc)} CNTRS")
     if GT:

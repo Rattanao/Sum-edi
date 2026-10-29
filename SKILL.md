@@ -31,7 +31,11 @@ letterhead image at the top keeps its Thai address.
 - SUMMARY title: `SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT <PORT>`. Page order: main port, transit countries, LKB.
 - B/L count includes house B/Ls (…A, …B).
 - Container size: from CNTRS (`(20')` / `(40')`) when given, else the B/L type code (`22G0` = 20', `45G0` / `45R1` = 40'). Containers are counted once per group.
-- **SOC**: containers in CNTRS that are not in the manifest (MF container numbers are read from column F or G). HEUNG A empties (CNTRS STATUS `4=MTY`, consignee HEUNG A …) get their own line per size, owner = CONSIGNEE cut at the first word like CO.,LTD. (→ HEUNG A LINE); every other such container (other owners, or not empty) goes into one `***SOC***` line per size. Each is a line under TOTAL (no colour in the PDF), HEUNG A first: `<OWNER>  20' :  n CNTRS  [SUM-EDI, MANIFEST AS PER ATTACHED]`, `***SOC***  40' :  n CNTRS  [...]`, then `GRAND TOTAL  <TOTAL + SOC> CNTRS` (bold, underlined). SOC has no weight/packages and is not on SUMMARY. Text that would run past the A4 margins (long owner, vessel or staff names) is drawn smaller so it fits.
+- **Containers in CNTRS but not in the manifest** (MF container numbers are read from column F or G):
+  - HEUNG A (consignee HEUNG A …), not empty → counted in the main port row (LCH / BANGKOK) as normal.
+  - HEUNG A empty (CNTRS STATUS `4=MTY`) → an `EMPTY  n X 20'` row inside the table (containers only, no B/L / weight / packages), included in TOTAL.
+  - Any other owner → under TOTAL a `***SOC***` heading, then one line per owner + size, owner = first word of the CONSIGNEE (`ORIENT OVERSEAS CONTAINER LINE` → ORIENT, `NS INTERNATIONAL …` → NS): `ORIENT  40' :  5 CNTRS  [SUM-EDI, MANIFEST AS PER ATTACHED]` (no colour in the PDF).
+  - Then `GRAND TOTAL  <TOTAL + SOC> CNTRS` (bold, underlined). EMPTY and SOC are not on SUMMARY. Text that would run past the A4 margins (long owner, vessel or staff names) is drawn smaller so it fits.
 - Weight and packages = sum of the B/Ls in the group. TOTAL must equal the MF **GRAND TOTAL**; the script prints OK / MISMATCH.
 - SUM-EDI table: at least 4 rows and always one ruled blank row before TOTAL. Headers: NO. OF CONTAINERS | NO. OF B/L (D/O) | TOTAL GROSS WEIGHT (KGS) | TOTAL NO. OF PACKAGES. Footer: `DATA SUBMITTED TO THE PORT BY ...` 1. EDI 2. E-MAIL, then the staff block (name / position / TEL).
 - Staff block: default MISS RATTANA / Import Documentation / 02-059 6253 (Direct). Other staff: `--name`, `--position`, `--tel` (web: the three fields, kept per browser).

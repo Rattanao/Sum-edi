@@ -16,7 +16,7 @@
 | LKB (GATE2) | `1) SHED NO. 0332` | LAEM CHABANG / LKB (ESCO GATE 2) |
 | MYANMAR / LAOS / MALAYSIA | `3) CARGO MOVEMENT (7-TRANSIT)` และรหัสประเทศ `MM` / `LA` / `MY` | \*CARGO INTRANSIT TO … P.D.R. VIA … |
 
-- **ตู้ที่ไม่มีใน MF** (อยู่ใน CNTRS แต่ไม่มีใน MF): ตู้เปล่า STATUS `4=MTY` ของ HEUNG A แสดงบรรทัดของตัวเองแยกตามขนาด (HEUNG A LINE 20' : … CNTRS) ส่วนตู้อื่นทั้งหมด (เจ้าของอื่น หรือไม่ใช่ตู้เปล่า) รวมเป็นบรรทัด **\*\*\*SOC\*\*\*** แยกตามขนาด แสดงใต้ TOTAL (เอกสารไม่มีสี) พร้อม `[SUM-EDI, MANIFEST AS PER ATTACHED]` แล้วรวมเป็น **GRAND TOTAL** (ตัวอย่าง: 60 + 1 + 21 = 82 CNTRS)
+- **ตู้ที่อยู่ใน CNTRS แต่ไม่มีใน MF**: ของ HEUNG A ที่ไม่ใช่ตู้เปล่า นับรวมในแถวท่าเรือหลักตามปกติ · ตู้เปล่า STATUS `4=MTY` ของ HEUNG A เป็นแถว **EMPTY** ในตาราง (นับรวมใน TOTAL) · เจ้าของอื่นแสดงใต้ TOTAL ในหัวข้อ **\*\*\*SOC\*\*\*** แยกตามเจ้าของ (คำแรกของ CONSIGNEE เช่น ORIENT, NS) และขนาด (เอกสารไม่มีสี) พร้อม `[SUM-EDI, MANIFEST AS PER ATTACHED]` แล้วรวมเป็น **GRAND TOTAL** (ตัวอย่าง: 60 + 1 + 21 = 82 CNTRS)
 - จำนวน B/L นับรวม House B/L (…A, …B)
 - ขนาดตู้จาก CNTRS ถ้าไม่มี ใช้รหัสประเภทตู้: `22G0` = 20' · `45G0` / `45R1` = 40' (ตู้เดียวกันนับครั้งเดียว)
 - ยอดรวมทุกกลุ่มต้องเท่ากับ **GRAND TOTAL** ของ MF (โปรแกรมแจ้งว่าตรงหรือไม่ตรง)
