@@ -141,6 +141,7 @@ const ORDER = ["LCH", "BKK", "LKR", "MYANMAR", "LAOS", "MALAYSIA"];
 // words that end the short SOC owner name: "BEN LINE AGENCIES (THAILAND) LTD." -> "BEN LINE"
 const SOC_STOP = new Set(["AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
   "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"]);
+const RE_HAL = /HEUNG[\s-]*A\b/i;
 const AGENT1 = "HEUNG A LINE CO., LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD.";
 const AGENT2 = "HEUNG A LINE CO.,LTD C/O HEUNG-A SHIPPING (THAILAND) CO.,LTD.";
 const SIG_KEY = "sum-edi-signature", STAFF_KEY = "sum-edi-staff";
@@ -198,13 +199,13 @@ function readMf(bytes) {
     if ((m = v[15].match(/SHED NO\.\s*(\d+)/))) b.shed = m[1];
     if ((m = v[15].match(/^2\).*\(([A-Z]{2})\)\s*$/))) b.country = m[1];
     if (v[15].includes("CARGO MOVEMENT") && v[15].includes("TRANSIT")) b.transit = true;
-    b.cntrs.push(...(v[5].match(RE_CN) || []));
+    b.cntrs.push(...((v[5] + " " + v[6]).match(RE_CN) || []));   // CONTAINER NO. is in column F or G
     if ((m = v[10].match(/^(\d{2}[A-Z]\d)X\d+/))) b.types.push(m[1]);
   }
   return { vessel, port: port || "LAEM CHABANG", bls, gt };
 }
 
-// CNTRS.xls container list -> {container: {size, consignee}}
+// CNTRS.xls container list -> {container: {size, consignee, empty}}
 function readCntrs(bytes) {
   const { rg, cell } = sheetCells(bytes);
   const out = {};
@@ -214,7 +215,8 @@ function readCntrs(bytes) {
     const t = [3, 4, 5, 6, 7, 8].map(c => cell(r, c)).join(" ");
     const m = t.match(/\((\d\d)'\)/);
     const size = m ? m[1] : (/\b2\d[A-Z]\d\b/.test(t) ? "20" : "40");
-    out[c0] = { size: size === "20" ? 20 : 40, consignee: cell(r, 9) };
+    const status = Array.from({ length: 8 }, (_, i) => cell(r, 15 + i)).find(x => /^\d=/.test(x)) || "";
+    out[c0] = { size: size === "20" ? 20 : 40, consignee: cell(r, 9), empty: /^4=|MTY/.test(status) };
   }
   return out;
 }
@@ -240,8 +242,11 @@ function summarize(bls, main, cn) {
   });
   const inMf = new Set(Object.values(bls).flatMap(b => b.cntrs));
   const socMap = {};
-  for (const [c, x] of Object.entries(cn)) if (!inMf.has(c)) (socMap[`${socOwner(x.consignee)}|${x.size}`] ||= []).push(c);
-  const soc = Object.entries(socMap).map(([k, cs]) => { const [owner, sz] = k.split("|"); return { owner, size: +sz, cntrs: cs.sort() }; });
+  // not in the manifest: HEUNG A empties (4=MTY) get their own line, everything else goes into ***SOC***
+  for (const [c, x] of Object.entries(cn)) if (!inMf.has(c))
+    (socMap[`${x.empty && RE_HAL.test(x.consignee) ? socOwner(x.consignee) : "***SOC***"}|${x.size}`] ||= []).push(c);
+  const soc = Object.entries(socMap).map(([k, cs]) => { const [owner, sz] = k.split("|"); return { owner, size: +sz, cntrs: cs.sort() }; })
+    .sort((a, b) => (a.owner === "***SOC***") - (b.owner === "***SOC***") || a.owner.localeCompare(b.owner) || a.size - b.size);
   return { summ, soc,
            nosize: [...inMf].filter(c => !(c in size)).sort(),
            notInCntrs: Object.keys(cn).length ? [...inMf].filter(c => !(c in cn)).sort() : [] };
@@ -252,8 +257,10 @@ function pen(page, fonts) {
   const H = page.getHeight();
   return {
     // x, y = baseline from the top-left, like scripts/sum_mf.py
-    text(x, y, s, size, { font = fonts.r, right = false, underline = false } = {}) {
-      const w = font.widthOfTextAtSize(s, size);
+    // max = widest the text may be; longer text is drawn smaller so it stays inside the page
+    text(x, y, s, size, { font = fonts.r, right = false, underline = false, max = 0 } = {}) {
+      let w = font.widthOfTextAtSize(s, size);
+      if (max && w > max) { size *= max / w; w = max; }
       if (right) x -= w;
       page.drawText(s, { x, y: H - y, size, font });
       if (underline) page.drawLine({ start: { x, y: H - y - 1.5 }, end: { x: x + w, y: H - y - 1.5 }, thickness: .5 });
@@ -282,7 +289,7 @@ async function buildSummary(vessel, port, main, summ) {
     const p = pen(doc.addPage([842, 595]), fonts);
     const title = `SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT ${port}`;
     p.text(421 - fonts.b.widthOfTextAtSize(title, 8) / 2, 60, title, 8, { font: fonts.b });
-    p.text(133, 99, "FOR MV.", 8, { underline: true }); p.text(177, 99, vessel, 8, { underline: true });
+    p.text(133, 99, "FOR MV.", 8, { underline: true }); p.text(177, 99, vessel, 8, { underline: true, max: 600 });
     p.line(75, 118, 690, 118, .6, true);
     p.text(75, double ? 198 : 178, agent, 8, { underline: true });
     const y = double ? 238 : 222;
@@ -317,7 +324,7 @@ async function buildSumEdi(vessel, summ, T, soc, staff) {
   p.image(await doc.embedJpg(lh), 45, 52, 505, 102);
   [["AGENT  NAME  :", AGENT1], ["TAX ID:", "0993000456955"], ["VESSEL  :", vessel]].forEach(([k, v], i) => {
     const y = 194 + i * 21;
-    p.text(53, y, k, 9.5, { font: fonts.b }); p.text(147, y, v, 9.5, { font: fonts.b });
+    p.text(53, y, k, 9.5, { font: fonts.b }); p.text(147, y, v, 9.5, { font: fonts.b, max: 400 });
     p.line(140, y + 5, 510, y + 5, .5, false, .5);
   });
   const X = [140, 263, 330, 420, 520], top = 270, hh = 50, rh = 20;
@@ -332,7 +339,7 @@ async function buildSumEdi(vessel, summ, T, soc, staff) {
   center(X[3], X[4], top + 23, "TOTAL NO. OF"); center(X[3], X[4], top + 36, "PACKAGES");
   let y = body + 15;
   for (const x of summ) {
-    p.text(X[0] - 2, y, LABEL[x.g] || x.g, 8.5, { font: fonts.b, right: true });
+    p.text(X[0] - 2, y, LABEL[x.g] || x.g, 8.5, { font: fonts.b, right: true, max: 90 });
     if (x.n20) p.text(185, y, `${x.n20}  X 20'`, 8.5, { right: true });
     if (x.n40) p.text(258, y, `${x.n40}  X 40'`, 8.5, { right: true });
     p.text(300, y, String(x.bls), 8.5, { right: true });
@@ -352,7 +359,7 @@ async function buildSumEdi(vessel, summ, T, soc, staff) {
     const B = { font: fonts.b };
     soc.forEach((s, i) => {
       const ys = yb + i * 16;
-      p.text(118, ys, s.owner, 8, { ...B, right: true });
+      p.text(118, ys, s.owner, 8, { ...B, right: true, max: 70 });
       p.text(128, ys, `${s.size}' :`, 8, B);
       p.text(205, ys, String(s.cntrs.length), 8, { ...B, right: true }); p.text(210, ys, "CNTRS", 8, B);
       p.text(300, ys, "[SUM-EDI, MANIFEST AS PER ATTACHED]", 8, B);
@@ -369,7 +376,7 @@ async function buildSumEdi(vessel, summ, T, soc, staff) {
   [staff.name, staff.position, staff.tel ? `TEL:   ${staff.tel}` : ""].forEach((s, i) => {
     if (!s.trim()) return;
     const yy = yb + 70 + i * 20;
-    p.text(390, yy, s, 9, { font: fonts.t }); p.line(385, yy + 5, 545, yy + 5, .5);
+    p.text(390, yy, s, 9, { font: fonts.t, max: 160 }); p.line(385, yy + 5, 545, yy + 5, .5);
   });
   return doc.save();
 }
@@ -418,7 +425,7 @@ async function render() {
     `<tr class="bls hidden" id="bl${i}"><td colspan="7">${x.nos.join(", ")}</td></tr>`).join("") +
     `<tr class="total"><td>TOTAL</td><td></td><td></td><td>${T.cntrs}</td><td>${T.bls}</td><td class="n">${f3(T.gw)}</td><td class="n">${f0(T.pkg)}</td></tr>` +
     soc.map((s, i) =>
-      `<tr class="soc g" data-i="s${i}" title="คลิกเพื่อดูเลขตู้"><td>SOC ${escapeHtml(s.owner)}</td><td>${s.size === 20 ? s.cntrs.length : ""}</td><td>${s.size === 40 ? s.cntrs.length : ""}</td>` +
+      `<tr class="soc g" data-i="s${i}" title="คลิกเพื่อดูเลขตู้"><td>${escapeHtml(s.owner)}</td><td>${s.size === 20 ? s.cntrs.length : ""}</td><td>${s.size === 40 ? s.cntrs.length : ""}</td>` +
       `<td>${s.cntrs.length}</td><td colspan="3">[SUM-EDI, MANIFEST AS PER ATTACHED]</td></tr>` +
       `<tr class="bls hidden" id="bls${i}"><td colspan="7">${s.cntrs.join(", ")}</td></tr>`).join("") +
     (soc.length ? `<tr class="grand"><td>GRAND TOTAL</td><td></td><td></td><td>${grand}</td><td colspan="3"></td></tr>` : "");

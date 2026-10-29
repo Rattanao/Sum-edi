@@ -75,7 +75,7 @@ def read_mf(path):
         m = re.match(r"^2\).*\(([A-Z]{2})\)\s*$", v[15])
         if m: b["country"] = m.group(1)
         if "CARGO MOVEMENT" in v[15] and "TRANSIT" in v[15]: b["transit"] = True
-        b["cntrs"] += CNRE.findall(v[5])
+        b["cntrs"] += CNRE.findall(v[5] + " " + v[6])   # CONTAINER NO. is in column F or G
         m = re.match(r"^(\d{2}[A-Z]\d)X\d+", v[10])
         if m: b["types"].append(m.group(1))
     total = None
@@ -87,7 +87,7 @@ def read_mf(path):
 
 
 def read_cntrs(path):
-    """CNTRS.xls container list -> {container: (size "20'"/"40'", consignee)}"""
+    """CNTRS.xls container list -> {container: (size "20'"/"40'", consignee, empty)}"""
     s = xlrd.open_workbook(path, logfile=open(os.devnull, "w")).sheet_by_index(0)
     out = {}
     for r in range(s.nrows):
@@ -95,7 +95,8 @@ def read_cntrs(path):
         if not re.fullmatch(r"[A-Z]{4}\d{7}", v[0]): continue
         m = re.search(r"\((\d\d)'\)", " ".join(v[3:9]))
         size = (m.group(1) if m else "") or ("20" if re.search(r"\b2\d[A-Z]\d\b", " ".join(v[3:9])) else "40")
-        out.setdefault(v[0], ("20'" if size == "20" else "40'", v[9]))
+        status = next((x for x in v[15:23] if re.match(r"\d=", x)), "")
+        out.setdefault(v[0], ("20'" if size == "20" else "40'", v[9], bool(re.match(r"4=", status) or "MTY" in status)))
     return out
 
 
@@ -113,7 +114,7 @@ def group_of(b, main):
 
 
 def summarize(bls, main, cn_list):
-    size = {c: s for c, (s, _) in cn_list.items()}
+    size = {c: s for c, (s, _, _) in cn_list.items()}
     for b in bls.values():
         for c in b["cntrs"]:
             if b["types"]: size.setdefault(c, "20'" if b["types"][0][0] == "2" else "40'")
@@ -129,9 +130,11 @@ def summarize(bls, main, cn_list):
                          gw=round(sum(bls[n]["gw"] for n in nos), 3), pkg=sum(bls[n]["pkg"] for n in nos)))
     in_mf = {c for b in bls.values() for c in b["cntrs"]}
     soc = {}
-    for c, (sz, cons) in cn_list.items():
-        if c not in in_mf: soc.setdefault((soc_owner(cons), sz), []).append(c)
-    soc = [dict(owner=o, size=sz, cntrs=sorted(cs)) for (o, sz), cs in soc.items()]
+    # not in the manifest: HEUNG A empties (4=MTY) get their own line, everything else goes into ***SOC***
+    for c, (sz, cons, empty) in cn_list.items():
+        if c not in in_mf: soc.setdefault((soc_owner(cons) if empty and HALRE.search(cons) else "***SOC***", sz), []).append(c)
+    soc = sorted((dict(owner=o, size=sz, cntrs=sorted(cs)) for (o, sz), cs in soc.items()),
+                 key=lambda s: (s["owner"] == "***SOC***", s["owner"], s["size"]))
     nosize = sorted(c for c in in_mf if c not in size)
     not_in_cntrs = sorted(in_mf - set(cn_list)) if cn_list else []
     return summ, soc, nosize, not_in_cntrs
@@ -140,13 +143,16 @@ def summarize(bls, main, cn_list):
 # ---------------------------------------------------------------- drawing
 TIMES, TIMESB = r"C:\Windows\Fonts\times.ttf", r"C:\Windows\Fonts\timesbd.ttf"
 FONTFILES = {"tr": TIMES, "tb": TIMESB, "th": r"C:\Windows\Fonts\tahoma.ttf", "thb": r"C:\Windows\Fonts\tahomabd.ttf"}
+HALRE = re.compile(r"HEUNG[\s-]*A\b", re.I)
 AGENT1 = "HEUNG A LINE CO., LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD."
 AGENT2 = "HEUNG A LINE CO.,LTD C/O HEUNG-A SHIPPING (THAILAND) CO.,LTD."
 
 
-def text(pg, x, y, s, size=8, bold=False, right=False, underline=False, font=None):
+def text(pg, x, y, s, size=8, bold=False, right=False, underline=False, font=None, maxw=0):
+    """maxw = widest the text may be; longer text is drawn smaller so it stays inside the page"""
     fn = font or ("tb" if bold else "tr"); ff = FONTFILES[fn]
     w = pymupdf.Font(fontfile=ff).text_length(s, size)
+    if maxw and w > maxw: size *= maxw / w; w = maxw
     if right: x -= w
     pg.insert_text((x, y), s, fontsize=size, fontname=fn, fontfile=ff)
     if underline: pg.draw_line((x, y + 1.5), (x + w, y + 1.5), width=0.5)
@@ -157,7 +163,7 @@ def summary_page(doc, vessel_name, port, agent, left, place, gw, pkg, double=Fal
     pg = doc.new_page(width=842, height=595)
     title = f"SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT {port}"
     text(pg, 421 - pymupdf.Font(fontfile=TIMESB).text_length(title, 8) / 2, 60, title, 8, bold=True)
-    text(pg, 133, 99, "FOR MV.", 8, underline=True); text(pg, 177, 99, vessel_name, 8, underline=True)
+    text(pg, 133, 99, "FOR MV.", 8, underline=True); text(pg, 177, 99, vessel_name, 8, underline=True, maxw=600)
     pg.draw_line((75, 118), (690, 118), width=0.6, dashes="[1 1.5] 0")
     text(pg, 75, 178 if not double else 198, agent, 8, underline=True)
     y = 222 if not double else 238
@@ -191,7 +197,7 @@ def write_sum_edi(path, vessel_name, summ, T, soc, staff):
     pg.insert_image(pymupdf.Rect(45, 52, 45 + 505, 52 + 102), filename=LETTERHEAD)
     for i, (k, v) in enumerate((("AGENT  NAME  :", AGENT1), ("TAX ID:", "0993000456955"), ("VESSEL  :", vessel_name))):
         y = 194 + i * 21
-        text(pg, 53, y, k, 9.5, font="thb"); text(pg, 147, y, v, 9.5, font="thb")
+        text(pg, 53, y, k, 9.5, font="thb"); text(pg, 147, y, v, 9.5, font="thb", maxw=400)
         pg.draw_line((140, y + 5), (510, y + 5), width=0.5, color=(0.5, 0.5, 0.5))
     X = [140, 263, 330, 420, 520]
     top, hh, rh = 270, 50, 20
@@ -210,7 +216,7 @@ def write_sum_edi(path, vessel_name, summ, T, soc, staff):
     ctext(X[3], X[4], top + 23, "TOTAL NO. OF"); ctext(X[3], X[4], top + 36, "PACKAGES")
     y = body + 15
     for x in summ:
-        text(pg, X[0] - 2, y, LABEL.get(x["g"], x["g"]), 8.5, right=True, font="thb")
+        text(pg, X[0] - 2, y, LABEL.get(x["g"], x["g"]), 8.5, right=True, font="thb", maxw=90)
         if x["n20"]: text(pg, 185, y, f"{x['n20']}  X 20'", 8.5, right=True, font="th")
         if x["n40"]: text(pg, 258, y, f"{x['n40']}  X 40'", 8.5, right=True, font="th")
         text(pg, 300, y, f"{x['bls']}", 8.5, right=True, font="th")
@@ -228,7 +234,7 @@ def write_sum_edi(path, vessel_name, summ, T, soc, staff):
     if soc:                                          # SOC containers: not in the manifest, own lines
         for i, s in enumerate(soc):
             ys = yb + i * 16
-            text(pg, 118, ys, s["owner"], 8, right=True, font="thb")
+            text(pg, 118, ys, s["owner"], 8, right=True, font="thb", maxw=70)
             text(pg, 128, ys, f"{s['size']} :", 8, font="thb")
             text(pg, 205, ys, f"{len(s['cntrs'])}", 8, right=True, font="thb"); text(pg, 210, ys, "CNTRS", 8, font="thb")
             text(pg, 300, ys, "[SUM-EDI, MANIFEST AS PER ATTACHED]", 8, font="thb")
@@ -243,7 +249,7 @@ def write_sum_edi(path, vessel_name, summ, T, soc, staff):
     for i, t in enumerate((staff["name"], staff["position"], f"TEL:   {staff['tel']}")):
         if not t.strip() or t.strip() == "TEL:": continue
         y = yb + 70 + i * 20
-        text(pg, 390, y, t, 9, font="tr")
+        text(pg, 390, y, t, 9, font="tr", maxw=160)
         pg.draw_line((385, y + 5), (545, y + 5), width=0.5)
     doc.subset_fonts(); doc.save(path, garbage=4, deflate=True)
 
@@ -278,7 +284,7 @@ def main():
     for x in summ:
         print(f"{LABEL.get(x['g'], x['g']):12} {x['n20']:>3}x20' {x['n40']:>3}x40' BL {x['bls']:>3} {x['gw']:>14,.3f} KGS {x['pkg']:>7,} PKGS")
     print(f"TOTAL        {T['cntrs']} CNTRS  BL {T['bls']}  {T['gw']:,.3f}  {T['pkg']:,}")
-    for s in soc: print(f"SOC {s['owner']:10} {s['size']} : {len(s['cntrs'])} CNTRS")
+    for s in soc: print(f"{s['owner']:12} {s['size']} : {len(s['cntrs'])} CNTRS")
     if soc: print(f"GRAND TOTAL  {T['cntrs'] + sum(len(s['cntrs']) for s in soc)} CNTRS")
     if GT:
         ok = (round(GT[0], 3), GT[1]) == (T["gw"], T["pkg"])
