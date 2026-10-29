@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SUMMARY</title>
+<title>SUM-EDI</title>
 <link rel="icon" href="assets/hal-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
@@ -75,7 +75,7 @@
 </style>
 </head>
 <body>
-<header><div class="wrap"><span class="brand"><img src="assets/hal-logo.png" alt="Heung A Line"></span><h1>SUMMARY</h1><p>แยก MF เป็นกลุ่มท่าเรือ / Transit + ตู้ SOC แล้วทำ SUM-EDI.pdf + SUMMARY.pdf</p><span class="by">Project by Ms. Rattana Mudlae<br>Position Import DOC.</span></div></header>
+<header><div class="wrap"><span class="brand"><img src="assets/hal-logo.png" alt="Heung A Line"></span><h1>SUM-EDI</h1><p>แยก MF ตาม DELIVERY (จาก CNTRS) + ตู้ SOC แล้วทำ SUM-EDI.pdf + SUMMARY.pdf</p><span class="by">Project by Ms. Rattana Mudlae<br>Position Import DOC.</span></div></header>
 
 <main class="wrap">
   <section class="card">
@@ -96,15 +96,16 @@
       </div>
     </div>
     <div class="staff">
-      <div><label class="t" for="stName">ชื่อผู้จัดทำ <small>ท้าย SUM-EDI</small></label><input type="text" id="stName" autocomplete="off"></div>
+      <div><label class="t" for="stName">ชื่อผู้จัดทำ <small>ท้าย SUM-EDI · ทุกคนแก้เป็นของตัวเองได้</small></label><input type="text" id="stName" autocomplete="off"></div>
       <div><label class="t" for="stPos">ตำแหน่ง</label><input type="text" id="stPos" autocomplete="off"></div>
       <div><label class="t" for="stTel">เบอร์โทร</label><input type="text" id="stTel" autocomplete="off"></div>
     </div>
     <p class="rules">
-      ท่าเรือหลักตาม <b>PORT OF DISCHARGE</b> ใน MF: <code>LAEM CHABANG</code> = LCH · <code>BANGKOK</code> = BANGKOK ·
-      <b>LKB (GATE2)</b> = <code>SHED NO. 0332</code> ·
-      <b>MYANMAR / LAOS / MALAYSIA</b> = <code>CARGO MOVEMENT (7-TRANSIT)</code> รหัสประเทศ <code>MM</code> <code>LA</code> <code>MY</code><br>
-      <b>ตู้ SOC</b> = ตู้ที่อยู่ใน CNTRS แต่ไม่มีใน MF แยกตามเจ้าของ (CONSIGNEE) และขนาด แล้วรวมใน <b>GRAND TOTAL</b> ·
+      แยกตาม <b>DELIVERY</b> จาก CNTRS (<code>Port Of Delivery</code> และ SHED NUMBER):
+      <code>0332</code> = THLKR · <code>0110</code> = THBMT · <code>0302</code> = THSCT · <code>0122</code> = THBKK · อื่น ๆ = THLCH (หรือ THBKK ถ้าเรือลงที่ BANGKOK) ·
+      <b>MYANMAR / LAOS / MALAYSIA / CHINA / CAMBODIA</b> = <code>CARGO MOVEMENT (7-TRANSIT)</code> ตามรหัสประเทศ ·
+      <b>TRANSHIPMENT</b> = CARGO MOVEMENT TRANSHIPMENT · <b>EMPTY</b> = ตู้เปล่า HEUNG A (4=MTY) · แสดงเฉพาะหัวข้อที่มีข้อมูล<br>
+      <b>ตู้ SOC</b> = ตู้เจ้าของอื่นที่อยู่ใน CNTRS แต่ไม่มีใน MF แยกตามเจ้าของ (CONSIGNEE) และขนาด แล้วรวมใน <b>GRAND TOTAL</b> ·
       ขนาดตู้จาก CNTRS (ถ้าไม่มี ใช้รหัส <code>22G0</code> = 20' · <code>45G0</code> = 40')<br>
       ชื่อ / ตำแหน่ง / เบอร์โทร จำไว้ในเบราว์เซอร์นี้ (แต่ละคนแก้ของตัวเองได้) ·
       ไฟล์ถูกประมวลผลในเบราว์เซอร์ของคุณเท่านั้น ไม่มีการอัปโหลดไปที่ใด
@@ -115,7 +116,7 @@
   <section class="card hidden" id="result">
     <div class="info" id="info"></div>
     <div class="tbl"><table>
-      <thead><tr><th>กลุ่ม</th><th>20'</th><th>40'</th><th>ตู้</th><th>B/L</th><th>น้ำหนัก (KGS)</th><th>หีบห่อ</th></tr></thead>
+      <thead><tr><th>DELIVERY</th><th>20'</th><th>40'</th><th>ตู้</th><th>B/L</th><th>น้ำหนัก (KGS)</th><th>หีบห่อ</th></tr></thead>
       <tbody id="tbody"></tbody>
     </table></div>
     <div class="toolbar">
@@ -126,7 +127,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29b</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29c</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -134,10 +135,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs
 const RE_BL = /^HASL[A-Z0-9]{10,14}$/;
 const RE_CN = /\b[A-Z]{4}\d{7}\b/g;
 const COUNTRY = { MM: "MYANMAR", LA: "LAOS", MY: "MALAYSIA", KH: "CAMBODIA", VN: "VIETNAM", CN: "CHINA" };
-const SHED_GROUP = { "0332": "LKR" };          // any other shed = the main port
-const PORTS = { "LAEM CHABANG": ["LCH", "LCH"], "BANGKOK": ["BKK", "BANGKOK"] };
-const LABEL = { LCH: "LCH", BKK: "BANGKOK", LKR: "LKB (GATE2)", EMPTY: "EMPTY" };
-const ORDER = ["LCH", "BKK", "LKR", "MYANMAR", "LAOS", "MALAYSIA"];
+// DELIVERY: "Port Of Delivery" of the CNTRS page; when that is the port of discharge, the shed tells the terminal
+const SHED_DELIVERY = { "0332": "THLKR", "0110": "THBMT", "0302": "THSCT", "0122": "THBKK", "0145": "THBKK" };
+const PORTS = { "LAEM CHABANG": "THLCH", "BANGKOK": "THBKK" };   // port of discharge -> delivery code
+const ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
+               "TRANSHIPMENT", "EMPTY"];
+const TRANSIT = new Set(["MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"]);
 // SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 const SOC_STOP = new Set(["AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
   "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"]);
@@ -190,7 +193,7 @@ function readMf(bytes) {
       const m = blk.match(/GROSSWEIGHT:\s*([\d,.]+).*?TOTAL PACK:\s*([\d,]+)/);
       if (m) gt = { gw: num(m[1]), pkg: num(m[2]) };
     }
-    if (RE_BL.test(v[0])) { cur = v[0]; bls[cur] = { pkg: 0, gw: 0, shed: "", country: "", transit: false, cntrs: [], types: [] }; }
+    if (RE_BL.test(v[0])) { cur = v[0]; bls[cur] = { pkg: 0, gw: 0, shed: "", country: "", transit: false, tranship: false, cntrs: [], types: [] }; }
     if (!cur) continue;
     if (v[0].startsWith("PortOfDischarge") || line.includes("PORT TOTAL") || line.includes("GRAND TOTAL")) { cur = null; continue; }
     const b = bls[cur]; let m;
@@ -199,24 +202,30 @@ function readMf(bytes) {
     if ((m = v[15].match(/SHED NO\.\s*(\d+)/))) b.shed = m[1];
     if ((m = v[15].match(/^2\).*\(([A-Z]{2})\)\s*$/))) b.country = m[1];
     if (v[15].includes("CARGO MOVEMENT") && v[15].includes("TRANSIT")) b.transit = true;
+    if (v[15].includes("CARGO MOVEMENT") && v[15].includes("TRANSHIP")) b.tranship = true;
     b.cntrs.push(...((v[5] + " " + v[6]).match(RE_CN) || []));   // CONTAINER NO. is in column F or G
     if ((m = v[10].match(/^(\d{2}[A-Z]\d)X\d+/))) b.types.push(m[1]);
   }
   return { vessel, port: port || "LAEM CHABANG", bls, gt };
 }
 
-// CNTRS.xls container list -> {container: {size, consignee, empty}}
-function readCntrs(bytes) {
+// CNTRS container list -> {container: {size, consignee, empty, delivery}}
+function readCntrs(bytes, discharge) {
   const { rg, cell } = sheetCells(bytes);
-  const out = {};
+  const out = {}; let deliv = discharge, shed = "";
   for (let r = rg.s.r; r <= rg.e.r; r++) {
-    const c0 = cell(r, 0);
+    const v = Array.from({ length: 31 }, (_, c) => cell(r, c));
+    const k = v.indexOf("Port Of Delivery");
+    if (k >= 0) deliv = (v.slice(k + 1).find(Boolean) || discharge).toUpperCase();
+    if (v[0].startsWith("SHED NUMBER")) { const m = (v.slice(1).find(Boolean) || "").match(/^\d+/); if (m) shed = m[0].padStart(4, "0"); }
+    const c0 = v[0];
     if (!/^[A-Z]{4}\d{7}$/.test(c0) || out[c0]) continue;
-    const t = [3, 4, 5, 6, 7, 8].map(c => cell(r, c)).join(" ");
+    const t = v.slice(3, 9).join(" ");
     const m = t.match(/\((\d\d)'\)/);
     const size = m ? m[1] : (/\b2\d[A-Z]\d\b/.test(t) ? "20" : "40");
-    const status = Array.from({ length: 8 }, (_, i) => cell(r, 15 + i)).find(x => /^\d=/.test(x)) || "";
-    out[c0] = { size: size === "20" ? 20 : 40, consignee: cell(r, 9), empty: /^4=|MTY/.test(status) };
+    const status = v.slice(15, 23).find(x => /^\d=/.test(x)) || "";
+    out[c0] = { size: size === "20" ? 20 : 40, consignee: v[9], empty: /^4=|MTY/.test(status),
+                delivery: deliv === discharge ? (SHED_DELIVERY[shed] || deliv) : deliv };
   }
   return out;
 }
@@ -228,7 +237,13 @@ function socOwner(consignee) {
 }
 
 function summarize(bls, main, cn) {
-  const groupOf = b => b.transit && b.country && b.country !== "TH" ? (COUNTRY[b.country] || b.country) : (SHED_GROUP[b.shed] || main);
+  // DELIVERY row of a B/L: transit country, TRANSHIPMENT, else the delivery of its containers in CNTRS
+  const groupOf = b => {
+    if (b.transit && b.country && b.country !== "TH") return COUNTRY[b.country] || b.country;
+    if (b.tranship) return "TRANSHIPMENT";
+    const c = b.cntrs.find(c => cn[c]);
+    return c ? cn[c].delivery : (SHED_DELIVERY[b.shed] || main);
+  };
   const size = Object.fromEntries(Object.entries(cn).map(([c, x]) => [c, x.size]));
   for (const b of Object.values(bls)) for (const c of b.cntrs) if (b.types.length && !(c in size)) size[c] = b.types[0][0] === "2" ? 20 : 40;
   const groups = {};
@@ -242,21 +257,24 @@ function summarize(bls, main, cn) {
   });
   const inMf = new Set(Object.values(bls).flatMap(b => b.cntrs));
   // containers in CNTRS but not in the manifest:
-  //   HEUNG A, not empty -> counted in the main port row; HEUNG A empty (4=MTY) -> EMPTY row in the table;
-  //   any other owner -> ***SOC*** lines under TOTAL
-  const extra = [], empty = [], socMap = {};
+  //   HEUNG A, not empty -> counted in its DELIVERY row; HEUNG A empty (4=MTY) -> EMPTY row in the table;
+  //   any other owner -> ***SOC*** lines under GRAND TOTAL
+  const extra = {}, empty = [], socMap = {};
   for (const [c, x] of Object.entries(cn)) {
     if (inMf.has(c)) continue;
     if (!RE_HAL.test(x.consignee)) (socMap[`${socOwner(x.consignee)}|${x.size}`] ||= []).push(c);
-    else (x.empty ? empty : extra).push(c);
+    else if (x.empty) empty.push(c);
+    else (extra[x.delivery] ||= []).push(c);
   }
   const count = cs => ({ cntrs: cs.length, n20: cs.filter(c => size[c] === 20).length, n40: cs.filter(c => size[c] === 40).length });
-  if (extra.length) {
-    let m = summ.find(x => x.g === main);
-    if (!m) summ.unshift(m = { g: main, nos: [], bls: 0, cntrs: 0, n20: 0, n40: 0, gw: 0, pkg: 0 });
-    const k = count(extra);
-    m.cntrs += k.cntrs; m.n20 += k.n20; m.n40 += k.n40; m.extra = extra.sort();
+  for (const [d, cs] of Object.entries(extra)) {
+    let m = summ.find(x => x.g === d);
+    if (!m) summ.push(m = { g: d, nos: [], bls: 0, cntrs: 0, n20: 0, n40: 0, gw: 0, pkg: 0 });
+    const k = count(cs);
+    m.cntrs += k.cntrs; m.n20 += k.n20; m.n40 += k.n40; m.extra = cs.sort();
   }
+  const rank = g => ORDER.includes(g) ? ORDER.indexOf(g) : ORDER.length - 1;
+  summ.sort((a, b) => rank(a.g) - rank(b.g));
   if (empty.length) summ.push({ g: "EMPTY", empty: true, nos: empty.sort(), bls: 0, gw: 0, pkg: 0, ...count(empty) });
   const soc = Object.entries(socMap).map(([k, cs]) => { const [owner, sz] = k.split("|"); return { owner, size: +sz, cntrs: cs.sort() }; })
     .sort((a, b) => a.owner.localeCompare(b.owner) || a.size - b.size);
@@ -319,81 +337,89 @@ async function buildSummary(vessel, port, main, summ) {
     p.line(75, 404, 690, 404, .6, true);
     p.text(75, 424, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 7.5);
   };
-  const S = Object.fromEntries(summ.map(x => [x.g, x]));
-  if (S[main]) page1(AGENT1, port, "", S[main].gw, S[main].pkg, true);
-  for (const g of Object.keys(S).filter(g => g !== main && g !== "LKR"))
+  // one page for the port (every delivery in Thailand except THLKR), one per transit country, one for THLKR
+  const S = Object.fromEntries(summ.filter(x => x.bls).map(x => [x.g, x]));
+  const portG = Object.keys(S).filter(g => !TRANSIT.has(g) && g !== "THLKR");
+  if (portG.length) page1(AGENT1, port, "", Math.round(portG.reduce((s, g) => s + S[g].gw, 0) * 1000) / 1000,
+                          portG.reduce((s, g) => s + S[g].pkg, 0), true);
+  for (const g of Object.keys(S).filter(g => TRANSIT.has(g)))
     page1(AGENT2, "*CARGO INTRANSIT TO", `${g}${g === "LAOS" ? "  " : ""}   P.D.R.  VIA  ${port}`, S[g].gw, S[g].pkg, false);
-  if (S.LKR) page1(AGENT1, `${port} /`, "LKB (ESCO GATE 2)", S.LKR.gw, S.LKR.pkg, true);
+  if (S.THLKR) page1(AGENT1, `${port} /`, "LKB (ESCO GATE 2)", S.THLKR.gw, S.THLKR.pkg, true);
   return doc.save();
 }
 
-async function buildSumEdi(vessel, summ, T, soc, staff) {
+async function buildSumEdi(vessel, port, summ, T, soc, staff) {
   const doc = await PDFLib.PDFDocument.create();
-  const fonts = { r: await doc.embedFont(PDFLib.StandardFonts.Helvetica), b: await doc.embedFont(PDFLib.StandardFonts.HelveticaBold),
-                  t: await doc.embedFont(PDFLib.StandardFonts.TimesRoman) };
+  const fonts = { r: await doc.embedFont(PDFLib.StandardFonts.TimesRoman), b: await doc.embedFont(PDFLib.StandardFonts.TimesRomanBold),
+                  a: await doc.embedFont(PDFLib.StandardFonts.HelveticaBold) };
   const p = pen(doc.addPage([595, 842]), fonts);
   const lh = await fetch("assets/letterhead.jpg").then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
     .catch(() => { throw new Error("โหลดหัวจดหมาย assets/letterhead.jpg ไม่ได้ — เปิดหน้านี้ผ่าน https://rattanao.github.io/Sum-edi/"); });
   p.image(await doc.embedJpg(lh), 45, 52, 505, 102);
-  [["AGENT  NAME  :", AGENT1], ["TAX ID:", "0993000456955"], ["VESSEL  :", vessel]].forEach(([k, v], i) => {
+  const A = { font: fonts.a };
+  [["AGENT  NAME  :", AGENT1], ["TAX ID:", "0993000456955"], ["VESSEL  :", vessel], ["PORT OF DISCHARGE :", port]].forEach(([k, v], i) => {
     const y = 194 + i * 21;
-    p.text(53, y, k, 9.5, { font: fonts.b }); p.text(147, y, v, 9.5, { font: fonts.b, max: 400 });
-    p.line(140, y + 5, 510, y + 5, .5, false, .5);
+    p.text(54, y, k, 9.5, A);
+    const x = i < 3 ? 185 : 54 + fonts.a.widthOfTextAtSize(k, 9.5) + 3;
+    p.text(x, y, v, 9.5, { ...A, max: 541 - x });
+    p.line(i < 3 ? 185 : 54, y + 5, 541, y + 5, .5);
   });
-  const X = [140, 263, 330, 420, 520], top = 270, hh = 50, rh = 20;
-  const nrows = Math.max(summ.length + 1, 4);     // always at least one blank row, at least 4 rows
-  const body = top + hh, bottom = body + rh * nrows + 22;
-  p.line(X[0], top, X[4], top); p.line(X[0], body, X[4], body);
-  for (const x of X) p.line(x, top, x, bottom);
-  for (let i = summ.length; i < nrows; i++) p.line(X[0], body + rh * i + 2, X[4], body + rh * i + 2, .5);
-  const center = (x0, x1, y, s) => p.text((x0 + x1 - fonts.b.widthOfTextAtSize(s, 8.5)) / 2, y, s, 8.5, { font: fonts.b });
-  center(X[0], X[1], top + 29, "NO. OF CONTAINERS"); center(X[1], X[2], top + 23, "NO. OF B/L"); center(X[1], X[2], top + 36, "(D/O)");
-  center(X[2], X[3], top + 23, "TOTAL GROSS"); center(X[2], X[3], top + 36, "WEIGHT (KGS)");
-  center(X[3], X[4], top + 23, "TOTAL NO. OF"); center(X[3], X[4], top + 36, "PACKAGES");
-  let y = body + 15;
+  // only the DELIVERY rows that have containers, then one blank row and GRAND TOTAL
+  const X = [51, 147, 276, 347, 445, 541], top = 279, hh = 43, rh = 20;
+  const nrows = summ.length + 1, body = top + hh, bottom = body + rh * nrows + 22;
+  p.line(X[0], top, X[5], top, .8); p.line(X[0], bottom, X[5], bottom, .8);
+  for (const x of X) p.line(x, top, x, bottom, x === X[0] || x === X[5] ? .8 : .6);
+  for (let i = 0; i <= nrows; i++) p.line(X[0], body + rh * i, X[5], body + rh * i, .6);
+  p.line(X[0], bottom - 2, X[5], bottom - 2, .6);                  // double line under GRAND TOTAL
+  const B = { font: fonts.b };
+  const center = (x0, x1, y, s, size = 8.5) => p.text((x0 + x1 - fonts.b.widthOfTextAtSize(s, size)) / 2, y, s, size, B);
+  p.text(X[0] + 3, top + 35, "DELIVERY", 8.5, B);
+  center(X[1], X[2], top + 35, "TOTAL CNTRS"); center(X[2], X[3], top + 35, "TOTAL B/L");
+  center(X[3], X[4], top + 14, "TOTAL", 9.5); center(X[3], X[4], top + 29, "GROSS WEIGHT", 9.5);
+  center(X[4], X[5], top + 35, "TOTAL PKGS", 9.5);
+  let y = body + 14;
   for (const x of summ) {
-    p.text(X[0] - 2, y, LABEL[x.g] || x.g, 8.5, { font: fonts.b, right: true, max: 90 });
-    if (x.n20) p.text(185, y, `${x.n20}  X 20'`, 8.5, { right: true });
-    if (x.n40) p.text(258, y, `${x.n40}  X 40'`, 8.5, { right: true });
-    if (!x.empty) {
-      p.text(300, y, String(x.bls), 8.5, { right: true });
-      p.text(412, y, f3(x.gw), 8.5, { right: true });
-      p.text(514, y, f0(x.pkg), 8.5, { right: true });
+    p.text(X[0] + 3, y, x.g, 9, { ...B, max: X[1] - X[0] - 6 });
+    if (x.n20) p.text(208, y, `${x.n20}   X 20'`, 8.5, { ...B, right: true });
+    if (x.n40) p.text(268, y, `${x.n40}   X 40'`, 8.5, { ...B, right: true });
+    if (x.bls) {
+      p.text(X[3] - 6, y, String(x.bls), 8.5, { ...B, right: true });
+      p.text(X[4] - 6, y, f3(x.gw), 8.5, { ...B, right: true });
+      p.text(X[5] - 6, y, f0(x.pkg), 8.5, { ...B, right: true });
     }
     y += rh;
   }
-  const yt = body + rh * nrows + 15;
-  p.line(X[0], yt - 15, X[4], yt - 15); p.line(X[0], yt + 7, X[4], yt + 7);
-  p.text(X[0] - 2, yt, "TOTAL", 8.5, { font: fonts.b, right: true });
-  p.text(205, yt, String(T.cntrs), 8.5, { right: true }); p.text(215, yt, "CNTRS", 8.5);
-  p.text(300, yt, String(T.bls), 8.5, { right: true });
-  p.text(412, yt, f3(T.gw), 8.5, { right: true });
-  p.text(514, yt, f0(T.pkg), 8.5, { right: true });
-  let yb = yt + 30;
+  const yt = body + rh * nrows + 14;
+  center(X[0], X[1], yt, "GRAND TOTAL", 9);
+  p.text(220, yt, String(T.cntrs), 9, { ...B, right: true }); p.text(234, yt, "CNTRS", 9, B);
+  center(X[2], X[3], yt, T.bls ? String(T.bls) : "-", 9);
+  p.text(X[4] - 6, yt, T.gw ? f3(T.gw) : "-", 9, { ...B, right: true });
+  p.text(X[5] - 6, yt, f0(T.pkg), 9, { ...B, right: true });
+  let yb = bottom + 34;
   if (soc.length) {                               // SOC containers: other owners, not in the manifest
-    const B = { font: fonts.b };
-    p.text(53, yb, "***SOC***", 8, B);
+    let w = p.text(54, yb, "***", 7.5, A); w += p.text(54 + w, yb, "SOC", 7.5, { ...A, underline: true });
+    p.text(54 + w, yb, "***", 7.5, A);
     yb += 20;
     soc.forEach((s, i) => {
-      const ys = yb + i * 16;
-      p.text(118, ys, s.owner, 8, { ...B, right: true, max: 70 });
-      p.text(128, ys, `${s.size}' :`, 8, B);
-      p.text(205, ys, String(s.cntrs.length), 8, { ...B, right: true }); p.text(210, ys, "CNTRS", 8, B);
-      p.text(300, ys, "[SUM-EDI, MANIFEST AS PER ATTACHED]", 8, B);
+      const ys = yb + i * 19;
+      p.text(54, ys, s.owner, 7.5, { ...A, max: 100 });
+      p.text(160, ys, `${s.size}'`, 7.5, A);
+      p.text(212, ys, String(s.cntrs.length), 7.5, { ...A, right: true }); p.text(216, ys, "CNTRS", 7.5, A);
+      p.text(279, ys, "[SUM-EDI, MANIFEST AS PER ATTACHED]", 7.5, A);
     });
-    const yg = yb + soc.length * 16 + 10;
-    p.text(45, yg, "GRAND TOTAL", 8, { ...B, underline: true });
-    p.text(205, yg, String(T.cntrs + soc.reduce((s, x) => s + x.cntrs.length, 0)), 8, { ...B, right: true, underline: true });
-    p.text(210, yg, "CNTRS", 8, { ...B, underline: true });
-    yb = yg + 30;
+    const yg = yb + soc.length * 19 + 2;
+    p.text(54, yg, "GRAND TOTAL", 7.5, { ...A, underline: true });
+    p.text(212, yg, String(T.cntrs + soc.reduce((s, x) => s + x.cntrs.length, 0)), 7.5, { ...A, right: true, underline: true });
+    p.text(216, yg, "CNTRS", 7.5, { ...A, underline: true });
+    yb = yg + 20;
   }
-  yb = Math.max(yb, 550);
-  p.text(120, yb, "DATA SUBMITTED TO THE PORT BY ......................", 8.5);
-  p.text(245, yb + 20, "1.  EDI", 8.5); p.text(245, yb + 38, "2.  E-MAIL", 8.5);
+  yb = Math.max(yb + 14, 700);
+  p.text(54, yb, "DATA SUBMITTED TO THE PORT BY ........................", 9);
+  p.text(54, yb + 19, "1.  EDI", 9); p.text(54, yb + 38, "2.  E-MAIL", 9);
   [staff.name, staff.position, staff.tel ? `TEL:   ${staff.tel}` : ""].forEach((s, i) => {
     if (!s.trim()) return;
-    const yy = yb + 70 + i * 20;
-    p.text(390, yy, s, 9, { font: fonts.t, max: 160 }); p.line(385, yy + 5, 545, yy + 5, .5);
+    const yy = yb + i * 19;
+    p.text(347, yy, s, 9, { max: 190 }); p.line(345, yy + 5, 530, yy + 5, .5, true);
   });
   return doc.save();
 }
@@ -408,15 +434,15 @@ async function run() {
     const { vessel, port, bls, gt } = readMf(mfFile.bytes);
     if (!Object.keys(bls).length) throw new Error("ไม่พบ B/L (HASL...) ในไฟล์ MF");
     if (!Object.values(bls).some(b => b.shed)) throw new Error("ไฟล์ MF ไม่มีช่อง 1) SHED NO. / 2) ประเทศ / 3) CARGO MOVEMENT — ใช้ MF ที่ export แบบมีข้อมูลนี้");
-    const [main, label] = PORTS[port] || [port, port];
-    LABEL[main] ||= label;
-    const cn = cnFile ? readCntrs(cnFile.bytes) : {};
-    const { summ, soc, nosize, notInCntrs } = summarize(bls, main, cn);
+    const main = PORTS[port] || "TH" + port.slice(0, 3);
+    const cn = cnFile ? readCntrs(cnFile.bytes, main) : {};
+    let { summ, soc, nosize, notInCntrs } = summarize(bls, main, cn);
+    summ = summ.filter(x => x.cntrs || x.bls);
     const T = { bls: summ.reduce((s, x) => s + x.bls, 0), cntrs: summ.reduce((s, x) => s + x.cntrs, 0),
                 gw: Math.round(summ.reduce((s, x) => s + x.gw, 0) * 1000) / 1000, pkg: summ.reduce((s, x) => s + x.pkg, 0) };
     const vname = vessel.replace(/\s+(\S+)$/, " V.$1");
     report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs,
-               edi: await buildSumEdi(vname, summ, T, soc, staffNow()), sum: await buildSummary(vname, port, main, summ.filter(x => !x.empty)) };
+               edi: await buildSumEdi(vessel, port, summ, T, soc, staffNow()), sum: await buildSummary(vname, port, main, summ.filter(x => !x.empty)) };
     render();
   } catch (err) {
     report = null; $("result").classList.add("hidden");
@@ -437,11 +463,11 @@ async function render() {
     `<div class="k">GRAND TOTAL ของ MF</div><div class="${ok ? "ok" : "ng"}">${gt ? `${f3(gt.gw)} / ${f0(gt.pkg)} ${ok ? "✓ ตรง" : "✗ ไม่ตรงกับผลรวม"}` : "ไม่พบ"}</div>` +
     `<div class="k">ลายเซ็น</div><div class="${store.get(SIG_KEY) ? "ok" : "ng"}">${store.get(SIG_KEY) ? "ใส่แล้ว" : "ไม่มี"}</div>`;
   $("tbody").innerHTML = summ.map((x, i) =>
-    `<tr class="g" data-i="${i}" title="คลิกเพื่อดู B/L"><td class="b">${escapeHtml(LABEL[x.g] || x.g)}</td><td>${x.n20 || ""}</td><td>${x.n40 || ""}</td>` +
+    `<tr class="g" data-i="${i}" title="คลิกเพื่อดู B/L"><td class="b">${escapeHtml(x.g)}</td><td>${x.n20 || ""}</td><td>${x.n40 || ""}</td>` +
     (x.empty ? `<td>${x.cntrs}</td><td></td><td></td><td></td></tr>`
              : `<td>${x.cntrs}</td><td>${x.bls}</td><td class="n">${f3(x.gw)}</td><td class="n">${f0(x.pkg)}</td></tr>`) +
     `<tr class="bls hidden" id="bl${i}"><td colspan="7">${x.nos.join(", ")}${x.extra ? `<br>HEUNG A ไม่มีใน MF: ${x.extra.join(", ")}` : ""}</td></tr>`).join("") +
-    `<tr class="total"><td>TOTAL</td><td></td><td></td><td>${T.cntrs}</td><td>${T.bls}</td><td class="n">${f3(T.gw)}</td><td class="n">${f0(T.pkg)}</td></tr>` +
+    `<tr class="total"><td>GRAND TOTAL</td><td></td><td></td><td>${T.cntrs}</td><td>${T.bls}</td><td class="n">${f3(T.gw)}</td><td class="n">${f0(T.pkg)}</td></tr>` +
     (soc.length ? `<tr class="soc"><td colspan="7">***SOC***</td></tr>` : "") +
     soc.map((s, i) =>
       `<tr class="soc g" data-i="s${i}" title="คลิกเพื่อดูเลขตู้"><td>${escapeHtml(s.owner)}</td><td>${s.size === 20 ? s.cntrs.length : ""}</td><td>${s.size === 40 ? s.cntrs.length : ""}</td>` +

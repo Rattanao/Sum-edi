@@ -1,22 +1,24 @@
-# SUMMARY — แยก MF เป็น SUM-EDI.pdf + SUMMARY.pdf (LAEM CHABANG / BANGKOK + ตู้ SOC)
+# SUM-EDI — แยก MF ตาม DELIVERY เป็น SUM-EDI.pdf + SUMMARY.pdf (+ ตู้ SOC)
 
 โปรแกรมอ่านไฟล์ MF / MANIFEST (CARGO MANIFEST ทั้งลำ แบบ .xls/.xlsx ที่มีช่อง `1) SHED NO.` / `2) ประเทศ (XX)` / `3) CARGO MOVEMENT`)
-และไฟล์ CNTRS.xls (CONTAINER LIST, ไม่ใส่ก็ได้) แล้วแยก B/L เป็นกลุ่มตามท่าเรือ / Transit แยกตู้ SOC จากนั้นทำ 2 ไฟล์
+และไฟล์ CNTRS (CONTAINER LIST FOR FEEDER ชื่อไฟล์อะไรก็ได้ เช่น CNTRS.xls / INWARD.xls) แล้วแยก B/L ตาม **DELIVERY** แยกตู้ SOC จากนั้นทำ 2 ไฟล์
 
-- `SUM-EDI.pdf` ใบสรุป A4 หัวจดหมาย HEUNG A LINE: จำนวนตู้ 20'/40', จำนวน B/L, น้ำหนักรวม (KGS), จำนวนหีบห่อ ของแต่ละกลุ่ม, TOTAL, บรรทัดตู้ SOC และ GRAND TOTAL
-- `SUMMARY.pdf` หน้า "SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT LAEM CHABANG / BANGKOK" กลุ่มละ 1 หน้า (แนวนอน) พร้อมลายเซ็น
+- `SUM-EDI.pdf` ใบสรุป A4 หัวจดหมาย HEUNG A LINE: AGENT / TAX ID / VESSEL / PORT OF DISCHARGE และตาราง DELIVERY | TOTAL CNTRS | TOTAL B/L | TOTAL GROSS WEIGHT | TOTAL PKGS, GRAND TOTAL, บรรทัดตู้ SOC และ GRAND TOTAL รวม SOC
+- `SUMMARY.pdf` หน้า "SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT …" (แนวนอน) พร้อมลายเซ็น
 
 เนื้อหาในเอกสารเป็นภาษาอังกฤษทั้งหมด ยกเว้นหัวจดหมาย (ที่อยู่ด้านบน)
 
-## เงื่อนไขการแยกกลุ่ม
+## เงื่อนไขการแยก DELIVERY (แสดงเฉพาะหัวข้อที่มีข้อมูล ไม่มีก็ข้ามไป)
 
-| กลุ่ม | B/L ที่อยู่ในกลุ่ม | หน้า SUMMARY |
-|---|---|---|
-| LCH / BANGKOK | B/L ที่ไม่เข้ากลุ่มอื่น (ท่าเรือตาม `PORT OF DISCHARGE` ใน MF) | LAEM CHABANG / BANGKOK |
-| LKB (GATE2) | `1) SHED NO. 0332` | LAEM CHABANG / LKB (ESCO GATE 2) |
-| MYANMAR / LAOS / MALAYSIA | `3) CARGO MOVEMENT (7-TRANSIT)` และรหัสประเทศ `MM` / `LA` / `MY` | \*CARGO INTRANSIT TO … P.D.R. VIA … |
+| DELIVERY | มาจาก |
+|---|---|
+| THLCH / THLKR / THBMT / THSCT / THBKK | CNTRS: `Port Of Delivery` ของหน้านั้น ถ้าเป็นท่าเรือที่เรือลง ให้ดู `SHED NUMBER`: `0332` = THLKR · `0110` = THBMT · `0302` = THSCT · `0122` = THBKK · อื่น ๆ = THLCH (หรือ THBKK ถ้าเรือลงที่ BANGKOK) |
+| MYANMAR / LAOS / MALAYSIA / CHINA / CAMBODIA | MF `3) CARGO MOVEMENT (7-TRANSIT)` และรหัสประเทศ `MM` / `LA` / `MY` / `CN` / `KH` |
+| TRANSHIPMENT | MF CARGO MOVEMENT เป็น TRANSHIPMENT |
+| EMPTY | ตู้เปล่า HEUNG A (STATUS `4=MTY`) ใน CNTRS ที่ไม่มีใน MF |
 
-- **ตู้ที่อยู่ใน CNTRS แต่ไม่มีใน MF**: ของ HEUNG A ที่ไม่ใช่ตู้เปล่า นับรวมในแถวท่าเรือหลักตามปกติ · ตู้เปล่า STATUS `4=MTY` ของ HEUNG A เป็นแถว **EMPTY** ในตาราง (นับรวมใน TOTAL) · เจ้าของอื่นแสดงใต้ TOTAL ในหัวข้อ **\*\*\*SOC\*\*\*** แยกตามเจ้าของ (คำแรกของ CONSIGNEE เช่น ORIENT, NS) และขนาด (เอกสารไม่มีสี) พร้อม `[SUM-EDI, MANIFEST AS PER ATTACHED]` แล้วรวมเป็น **GRAND TOTAL** (ตัวอย่าง: 60 + 1 + 21 = 82 CNTRS)
+- **ตู้ที่อยู่ใน CNTRS แต่ไม่มีใน MF**: ของ HEUNG A ที่ไม่ใช่ตู้เปล่า นับรวมในแถว DELIVERY ของตู้นั้น · ตู้เปล่าเป็นแถว **EMPTY** · เจ้าของอื่นแสดงใต้ตารางในหัวข้อ **\*\*\*SOC\*\*\*** แยกตามเจ้าของ (คำแรกของ CONSIGNEE เช่น ORIENT, NS) และขนาด พร้อม `[SUM-EDI, MANIFEST AS PER ATTACHED]` แล้วรวมเป็น **GRAND TOTAL** (เอกสารไม่มีสี)
+- SUMMARY.pdf: หน้าท่าเรือ 1 หน้า (รวมทุก DELIVERY ในไทยยกเว้น THLKR) · หน้าละประเทศสำหรับ Transit · หน้า LKB (ESCO GATE 2) สำหรับ THLKR
 - จำนวน B/L นับรวม House B/L (…A, …B)
 - ขนาดตู้จาก CNTRS ถ้าไม่มี ใช้รหัสประเภทตู้: `22G0` = 20' · `45G0` / `45R1` = 40' (ตู้เดียวกันนับครั้งเดียว)
 - ยอดรวมทุกกลุ่มต้องเท่ากับ **GRAND TOTAL** ของ MF (โปรแกรมแจ้งว่าตรงหรือไม่ตรง)
@@ -35,15 +37,15 @@
 
 ## ใช้งานด้วยโปรแกรม Python (Windows)
 
-สิ่งที่ต้องมี: Python 3.9 ขึ้นไป และฟอนต์ Times New Roman / Tahoma ของ Windows
+สิ่งที่ต้องมี: Python 3.9 ขึ้นไป และฟอนต์ Times New Roman / Arial / Tahoma ของ Windows
 
 ```bash
 pip install -r requirements.txt
 ```
 
-1. วางไฟล์ MF (หรือ MANIFEST) และ CNTRS ไว้ในโฟลเดอร์ `input`
+1. วางไฟล์ MF (หรือ MANIFEST) และ CNTRS (หรือ INWARD) ไว้ในโฟลเดอร์ `input`
 2. (ไม่บังคับ) วางรูปลายเซ็นชื่อ `assets/signature.png` (ไฟล์นี้ไม่ถูกส่งขึ้น GitHub)
-3. ดับเบิลคลิก `run-summary.bat` หรือสั่ง
+3. ดับเบิลคลิก `run-sum-edi.bat` หรือสั่ง
 
    ```bash
    python -X utf8 scripts/sum_mf.py .
@@ -56,7 +58,7 @@ pip install -r requirements.txt
 
 ## ใช้กับ Claude Code
 
-โฟลเดอร์นี้เป็น skill ชื่อ `summary` (ไฟล์ [`SKILL.md`](SKILL.md)) พิมพ์ `summary` / `SUM-EDI` หรือ "ทำ summary จาก MF" แล้วแนบไฟล์ MF และ CNTRS
+โฟลเดอร์นี้เป็น skill ชื่อ `sum-edi` (ไฟล์ [`SKILL.md`](SKILL.md), วางไว้ที่ `~/.claude/skills/sum-edi`) พิมพ์ `sum-edi` หรือ "ทำ SUM-EDI จาก MF" แล้วแนบไฟล์ MF และ CNTRS
 
 ---
 Project by Ms. Rattana Mudlae · Import DOC. · HEUNG A LINE (THAILAND) CO.,LTD.

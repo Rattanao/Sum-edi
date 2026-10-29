@@ -1,8 +1,8 @@
 @echo off
 chcp 65001 >nul
 cd /d "%~dp0"
-echo ===== SUMMARY =====
-echo วางไฟล์ MF (.xls / .xlsx) ไว้ในโฟลเดอร์ input ก่อน
+echo ===== SUM-EDI =====
+echo วางไฟล์ MF และ CNTRS (.xls / .xlsx) ไว้ในโฟลเดอร์ input ก่อน
 echo.
 
 rem หา Python ที่รันได้จริง (ตัว python.exe ของ Microsoft Store บางเครื่องเป็นแค่ทางลัดที่รันไม่ได้)
