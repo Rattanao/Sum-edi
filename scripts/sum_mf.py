@@ -26,7 +26,10 @@ PORTS = {"LAEM CHABANG": "THLCH", "BANGKOK": "THBKK"}  # port of discharge -> de
 ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
          "TRANSHIPMENT", "EMPTY"]
 TRANSIT = {"MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"}
-PLACE = {"THLKR": "LKB (ESCO GATE 2)"}  # SUMMARY page "<PORT> / <place>"; other deliveries use their code
+# SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the gate (--gate)
+PLACE = {"THLKR": "LATKRABANG (GATE 2)", "THBMT": "BANGKOK MODERN TERMINAL", "THSCT": "SIAM CONTAINER TERMINAL",
+         "THBKK": "BANGKOK"}
+GATES = {"8": "(TLC GATE 8)", "9": "(ESCO GATE 2)"}
 # SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 SOC_STOP = {"AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
             "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"}
@@ -223,8 +226,18 @@ def summary_page(doc, vessel_name, port, agent, left, place, gw, pkg, double=Fal
     text(pg, 75, 424, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 7.5)
 
 
-def write_summary(path, vessel_name, port, main, summ):
+def gate_text(gate):
+    """GATE field -> text after LATKRABANG: "8" -> (TLC GATE 8), "9" -> (ESCO GATE 2), empty -> (GATE 2)"""
+    g = (gate or "").strip().upper()
+    if not g: return "(GATE 2)"
+    if g in GATES: return GATES[g]
+    if g.isdigit(): return f"(GATE {g})"
+    return g if g.startswith("(") else f"({g})"
+
+
+def write_summary(path, vessel_name, port, main, summ, gate=""):
     """one page per DELIVERY row with B/L, in the SUM-EDI order"""
+    PLACE["THLKR"] = f"LATKRABANG {gate_text(gate)}"
     doc = pymupdf.open()
     for x in [x for x in summ if x["bls"]]:
         g = x["g"]
@@ -311,6 +324,7 @@ def main():
     ap.add_argument("job", nargs="?", default=".")
     ap.add_argument("out", nargs="?")
     ap.add_argument("--cntrs")
+    ap.add_argument("--gate", default="", help='LATKRABANG gate: 8 = (TLC GATE 8), 9 = (ESCO GATE 2), or any text')
     for k, v in STAFF.items(): ap.add_argument("--" + k, default=v)
     a = ap.parse_args()
     mf, cntrs, out = find_files(a.job, a.cntrs)
@@ -329,7 +343,7 @@ def main():
              gw=round(sum(x["gw"] for x in summ), 3), pkg=sum(x["pkg"] for x in summ))
     vessel_name = re.sub(r"\s+(\S+)$", r" V.\1", vessel)
     staff = dict(name=a.name, position=a.position, tel=a.tel)
-    write_summary(os.path.join(out, "SUMMARY.pdf"), vessel_name, port, main_code, [x for x in summ if not x.get("empty")])
+    write_summary(os.path.join(out, "SUMMARY.pdf"), vessel_name, port, main_code, [x for x in summ if not x.get("empty")], a.gate)
     write_sum_edi(os.path.join(out, "SUM-EDI.pdf"), vessel, port, summ, T, soc, staff)
 
     print(f"MF: {mf}\nCNTRS: {cntrs or '- (no SOC check)'}\nVESSEL: {vessel}   PORT: {port}")

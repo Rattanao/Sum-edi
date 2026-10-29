@@ -18,7 +18,8 @@
 | EMPTY | ตู้เปล่า HEUNG A (STATUS `4=MTY`) ใน CNTRS ที่ไม่มีใน MF |
 
 - **ตู้ที่อยู่ใน CNTRS แต่ไม่มีใน MF**: ของ HEUNG A ที่ไม่ใช่ตู้เปล่า นับรวมในแถว DELIVERY ของตู้นั้น · ตู้เปล่าเป็นแถว **EMPTY** · เจ้าของอื่นแสดงใต้ตารางในหัวข้อ **\*\*\*SOC\*\*\*** แยกตามเจ้าของ (คำแรกของ CONSIGNEE เช่น ORIENT, NS) และขนาด พร้อม `[SUM-EDI, MANIFEST AS PER ATTACHED]` แล้วรวมเป็น **GRAND TOTAL** (เอกสารไม่มีสี)
-- SUMMARY.pdf: 1 หน้าต่อ 1 DELIVERY ที่มี B/L เรียงตามลำดับเดียวกับ SUM-EDI (THLCH = LAEM CHABANG · THLKR = LAEM CHABANG / LKB (ESCO GATE 2) · THBMT = LAEM CHABANG / THBMT · Transit = \*CARGO INTRANSIT TO …) EMPTY และ SOC ไม่มีหน้า
+- SUMMARY.pdf: 1 หน้าต่อ 1 DELIVERY ที่มี B/L เรียงตามลำดับเดียวกับ SUM-EDI (THLCH = LAEM CHABANG · THLKR = LAEM CHABANG / LATKRABANG (GATE …) · THBMT = BANGKOK MODERN TERMINAL · THSCT = SIAM CONTAINER TERMINAL · THBKK = BANGKOK · Transit = \*CARGO INTRANSIT TO …) EMPTY และ SOC ไม่มีหน้า
+- GATE ลาดกระบัง: ช่อง **GATE** บนหน้าเว็บ (หรือ `--gate`) พิมพ์ `8` = (TLC GATE 8) · `9` = (ESCO GATE 2) · เลขอื่น = (GATE เลขนั้น) · หรือพิมพ์ข้อความเอง · ว่าง = (GATE 2)
 - จำนวน B/L นับรวม House B/L (…A, …B)
 - ขนาดตู้จาก CNTRS ถ้าไม่มี ใช้รหัสประเภทตู้: `22G0` = 20' · `45G0` / `45R1` = 40' (ตู้เดียวกันนับครั้งเดียว)
 - ยอดรวมทุกกลุ่มต้องเท่ากับ **GRAND TOTAL** ของ MF (โปรแกรมแจ้งว่าตรงหรือไม่ตรง)

@@ -100,6 +100,12 @@
       <div><label class="t" for="stPos">ตำแหน่ง</label><input type="text" id="stPos" autocomplete="off"></div>
       <div><label class="t" for="stTel">เบอร์โทร</label><input type="text" id="stTel" autocomplete="off"></div>
     </div>
+    <div class="staff">
+      <div><label class="t" for="gate">GATE ลาดกระบัง <small>หน้า SUMMARY ของ THLKR · 8 = TLC GATE 8 · 9 = ESCO GATE 2 · หรือพิมพ์เอง</small></label>
+        <input type="text" id="gate" list="gateList" autocomplete="off" placeholder="ว่าง = (GATE 2)">
+        <datalist id="gateList"><option value="8">(TLC GATE 8)</option><option value="9">(ESCO GATE 2)</option></datalist></div>
+      <div><label class="t">จะแสดงในเอกสาร</label><div id="gateShow" style="padding:8px 0;font-weight:600"></div></div>
+    </div>
     <p class="rules">
       แยกตาม <b>DELIVERY</b> จาก CNTRS (<code>Port Of Delivery</code> และ SHED NUMBER):
       <code>0332</code> = THLKR · <code>0110</code> = THBMT · <code>0302</code> = THSCT · <code>0122</code> = THBKK · อื่น ๆ = THLCH (หรือ THBKK ถ้าเรือลงที่ BANGKOK) ·
@@ -127,7 +133,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29d</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29e</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -141,7 +147,17 @@ const PORTS = { "LAEM CHABANG": "THLCH", "BANGKOK": "THBKK" };   // port of disc
 const ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
                "TRANSHIPMENT", "EMPTY"];
 const TRANSIT = new Set(["MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"]);
-const PLACE = { THLKR: "LKB (ESCO GATE 2)" };   // SUMMARY page "<PORT> / <place>"; other deliveries use their code
+// SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the GATE field
+const PLACE = { THLKR: "LATKRABANG (GATE 2)", THBMT: "BANGKOK MODERN TERMINAL", THSCT: "SIAM CONTAINER TERMINAL", THBKK: "BANGKOK" };
+const GATES = { "8": "(TLC GATE 8)", "9": "(ESCO GATE 2)" };
+// GATE field -> text after LATKRABANG: "8" -> (TLC GATE 8), "9" -> (ESCO GATE 2), empty -> (GATE 2)
+function gateText(gate) {
+  const g = (gate || "").trim().toUpperCase();
+  if (!g) return "(GATE 2)";
+  if (GATES[g]) return GATES[g];
+  if (/^\d+$/.test(g)) return `(GATE ${g})`;
+  return g.startsWith("(") ? g : `(${g})`;
+}
 // SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 const SOC_STOP = new Set(["AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
   "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"]);
@@ -441,6 +457,7 @@ async function run() {
                 gw: Math.round(summ.reduce((s, x) => s + x.gw, 0) * 1000) / 1000, pkg: summ.reduce((s, x) => s + x.pkg, 0) };
     const vname = vessel.replace(/\s+(\S+)$/, " V.$1");
     report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs,
+               gate: (PLACE.THLKR = `LATKRABANG ${gateText($("gate").value)}`),
                edi: await buildSumEdi(vessel, port, summ, T, soc, staffNow()), sum: await buildSummary(vname, port, main, summ.filter(x => !x.empty)) };
     render();
   } catch (err) {
@@ -542,6 +559,9 @@ for (const id of ["stName", "stPos", "stTel"]) $(id).oninput = () => {
   store.set(STAFF_KEY, JSON.stringify(staffNow()));
   clearTimeout(staffTimer); staffTimer = setTimeout(run, 400);
 };
+const showGate = () => { $("gateShow").textContent = `LATKRABANG ${gateText($("gate").value)}`; };
+$("gate").oninput = () => { showGate(); clearTimeout(staffTimer); staffTimer = setTimeout(run, 400); };
+showGate();
 
 // ---------- events ----------
 function update() { $("clear").disabled = !(mfFile || cnFile || report); }
