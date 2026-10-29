@@ -3,7 +3,7 @@
 โปรแกรมอ่านไฟล์ MF / MANIFEST (CARGO MANIFEST ทั้งลำ แบบ .xls/.xlsx ที่มีช่อง `1) SHED NO.` / `2) ประเทศ (XX)` / `3) CARGO MOVEMENT`)
 และไฟล์ CNTRS (CONTAINER LIST FOR FEEDER ชื่อไฟล์อะไรก็ได้ เช่น CNTRS.xls / INWARD.xls) แล้วแยก B/L ตาม **DELIVERY** แยกตู้ SOC จากนั้นทำ 2 ไฟล์
 
-- `SUM-EDI.pdf` ใบสรุป A4 หัวจดหมาย HEUNG A LINE: AGENT / TAX ID / VESSEL / PORT OF DISCHARGE และตาราง DELIVERY | TOTAL CNTRS | TOTAL B/L | TOTAL GROSS WEIGHT | TOTAL PKGS, GRAND TOTAL, บรรทัดตู้ SOC และ GRAND TOTAL รวม SOC
+- `SUM-EDI.pdf` ใบสรุป A4 หัวจดหมาย HEUNG A LINE: AGENT / TAX ID / VESSEL / DISCHARGE และตาราง DELIVERY | TOTAL CNTRS | TOTAL B/L | TOTAL GROSS WEIGHT | TOTAL PKGS, GRAND TOTAL, บรรทัดตู้ SOC และ GRAND TOTAL รวม SOC
 - `SUMMARY.pdf` หน้า "SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT …" (แนวนอน) พร้อมลายเซ็น
 
 เนื้อหาในเอกสารเป็นภาษาอังกฤษทั้งหมด ยกเว้นหัวจดหมาย (ที่อยู่ด้านบน)
@@ -18,7 +18,7 @@
 | EMPTY | ตู้เปล่า HEUNG A (STATUS `4=MTY`) ใน CNTRS ที่ไม่มีใน MF |
 
 - **ตู้ที่อยู่ใน CNTRS แต่ไม่มีใน MF**: ของ HEUNG A ที่ไม่ใช่ตู้เปล่า นับรวมในแถว DELIVERY ของตู้นั้น · ตู้เปล่าเป็นแถว **EMPTY** · เจ้าของอื่นแสดงใต้ตารางในหัวข้อ **\*\*\*SOC\*\*\*** แยกตามเจ้าของ (คำแรกของ CONSIGNEE เช่น ORIENT, NS) และขนาด พร้อม `[SUM-EDI, MANIFEST AS PER ATTACHED]` แล้วรวมเป็น **GRAND TOTAL** (เอกสารไม่มีสี)
-- SUMMARY.pdf: หน้าท่าเรือ 1 หน้า (รวมทุก DELIVERY ในไทยยกเว้น THLKR) · หน้าละประเทศสำหรับ Transit · หน้า LKB (ESCO GATE 2) สำหรับ THLKR
+- SUMMARY.pdf: 1 หน้าต่อ 1 DELIVERY ที่มี B/L เรียงตามลำดับเดียวกับ SUM-EDI (THLCH = LAEM CHABANG · THLKR = LAEM CHABANG / LKB (ESCO GATE 2) · THBMT = LAEM CHABANG / THBMT · Transit = \*CARGO INTRANSIT TO …) EMPTY และ SOC ไม่มีหน้า
 - จำนวน B/L นับรวม House B/L (…A, …B)
 - ขนาดตู้จาก CNTRS ถ้าไม่มี ใช้รหัสประเภทตู้: `22G0` = 20' · `45G0` / `45R1` = 40' (ตู้เดียวกันนับครั้งเดียว)
 - ยอดรวมทุกกลุ่มต้องเท่ากับ **GRAND TOTAL** ของ MF (โปรแกรมแจ้งว่าตรงหรือไม่ตรง)
