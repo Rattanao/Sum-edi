@@ -42,7 +42,7 @@ DELIVERY row of each B/L, in this order (rows with no containers and no B/L are 
 - B/L count includes house B/Ls (…A, …B). Container size from CNTRS (`(20')` / `(40')`), else the type code (`22G0` = 20', `45G0` = 40'). Containers counted once per row.
 - Weight and packages = sum of the B/Ls in the row. The table's GRAND TOTAL must equal the MF **GRAND TOTAL**; the script prints OK / MISMATCH.
 - SUM-EDI form: AGENT NAME / TAX ID / VESSEL (as in the MF, e.g. `HEUNG-A BANGKOK 2612N`) / DISCHARGE (all four values start at the same x), table DELIVERY | TOTAL CNTRS (`n X 20'  n X 40'`) | TOTAL B/L | TOTAL GROSS WEIGHT | TOTAL PKGS, one blank row, `GRAND TOTAL n CNTRS` (`-` for zero B/L / weight). Footer `DATA SUBMITTED TO THE PORT BY ...` 1. EDI 2. E-MAIL and the staff block (name / position / TEL). Long text is drawn smaller to stay inside A4.
-- SUMMARY.pdf (vessel written `NAME V.VOY`): one page per DELIVERY row that has B/L, in the SUM-EDI order. The port of discharge row (THLCH / THBKK) → `<PORT>`; transit countries → `*CARGO INTRANSIT TO <COUNTRY> P.D.R. VIA <PORT>`; any other row → `<PORT> / <full name>`: THLKR `LATKRABANG <gate>`, THBMT `BANGKOK MODERN TERMINAL`, THSCT `SIAM CONTAINER TERMINAL`, THBKK `BANGKOK`. Gate (`--gate`, web: GATE field, per job): `8` → `(TLC GATE 8)`, `2` → `(ESCO GATE 2)`, other number n → `(GATE n)`, other text as typed in brackets, empty → `(GATE 2)`. EMPTY and SOC have no page.
+- SUMMARY.pdf (vessel written `NAME V.VOY`): one page per DELIVERY row that has B/L, in the SUM-EDI order. The port of discharge row (THLCH / THBKK) → `<PORT>`; transit countries → `*CARGO INTRANSIT TO <COUNTRY> P.D.R. VIA <PORT>`; any other row → `<PORT> / <full name>`: THLKR `LATKRABANG <gate>`, THBMT `BANGKOK MODERN TERMINAL`, THSCT `SIAM CONTAINER TERMINAL`, THBKK `BANGKOK`. Gate (`--gate`, web: GATE select, per job): `2` → `(ESCO GATE 2)` (default), `8` → `(TIFFA GATE 8)`; no other gates. EMPTY and SOC have no page.
 - Staff block default MISS RATTANA / Import Documentation / 02-059 6253 (Direct); other staff: `--name`, `--position`, `--tel` (web: the three fields, kept per browser).
 - Signature: `assets/signature.png` above the dotted line on every SUMMARY page. Local only (git-ignored, never pushed).
 
@@ -51,7 +51,7 @@ DELIVERY row of each B/L, in this order (rows with no containers and no B/L are 
 1. Find the files. With a job folder the script looks in `<job>/input`, then `<job>`. MF and CNTRS may each be Excel (.xls/.xlsx) or PDF, any file name, and may be split over several files (e.g. MF-LCH.pdf + MF-LAOS.pdf …, CNTRS-A0.pdf + CNTRS-LKR.pdf); they are told apart by content (`CONTAINER LIST FOR FEEDER` = CNTRS, `CARGO MANIFEST` = MF). Only files of the same voyage as the MF (e.g. 2611S) are used. `--cntrs FILE` gives one CNTRS file. PDF text is read line by line; the bigger page-header text is kept apart from container rows it is printed over.
 2. Run:
    ```bash
-   python -X utf8 "<skill dir>/scripts/sum_mf.py" "<job folder or MF file>" ["<output folder>"] [--cntrs FILE] [--gate 8|9|text] [--name ... --position ... --tel ...]
+   python -X utf8 "<skill dir>/scripts/sum_mf.py" "<job folder or MF file>" ["<output folder>"] [--cntrs FILE] [--gate 2|8] [--name ... --position ... --tel ...]
    ```
    Default output `<job>/output/`. Requires `pymupdf` and `xlrd`; Windows fonts Times New Roman, Arial and Tahoma.
 3. Report to the user in Thai: vessel and port, the DELIVERY rows (20'/40', B/L, KGS, PKGS), GRAND TOTAL, the SOC lines and their GRAND TOTAL, whether the total = MF GRAND TOTAL, plus any warning the script prints (containers in the manifest but not in CNTRS, containers without a size, no signature, no CNTRS given).
@@ -63,6 +63,6 @@ If the MF has no SHED NO. / country / CARGO MOVEMENT column (e.g. the per-port M
 
 `index.html` does the same in the browser (SheetJS + pdf-lib + pdf.js, nothing uploaded):
 https://rattanao.github.io/Sum-edi/ . MF and CNTRS go into one drop zone (told apart by content).
-Signature and staff fields are kept per browser in localStorage. When the rules change, change
+Signature and staff fields are kept per browser in localStorage. Nothing is built until the Process button (top of the page) is pressed; it re-reads every file and rebuilds both PDFs, and any later change shows a reminder to press it again. When the rules change, change
 `scripts/sum_mf.py` and `index.html` together. Repo: https://github.com/Rattanao/Sum-edi (this skill
 folder, `~/.claude/skills/sum-edi`, is its working copy).

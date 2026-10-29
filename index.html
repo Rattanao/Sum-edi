@@ -53,6 +53,11 @@
   .info .ok { color: var(--green); font-weight: 700; }
   .info .ng { color: var(--red); font-weight: 700; }
   .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
+  .toolbar.top { margin: 0 0 16px; }
+  .toolbar.top button { padding: 12px 40px; }
+  .hint { color: #555; font-size: 14px; }
+  .hint.stale { color: #b00; font-weight: 600; }
+  select { font: inherit; padding: 9px 10px; border: 1px solid #c7ccd6; border-radius: 8px; width: 100%; background: #fff; }
   .tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
   table { border-collapse: collapse; width: 100%; font-size: 15px; }
   th { background: var(--navy); color: #fff; padding: 10px 8px; white-space: nowrap; }
@@ -79,6 +84,10 @@
 
 <main class="wrap">
   <section class="card">
+    <div class="toolbar top">
+      <button id="process" disabled>Process</button>
+      <span id="state" class="hint">ใส่ไฟล์ MF (+ CNTRS) แล้วกด Process</span>
+    </div>
     <div class="inputs">
       <div>
         <label class="t">ไฟล์ MF / MANIFEST + CNTRS (Excel หรือ PDF) <small>ใส่พร้อมกันได้ หลายไฟล์ก็ได้ · CNTRS ไม่ใส่ก็ได้ (ใช้หาตู้ SOC)</small></label>
@@ -101,10 +110,8 @@
       <div><label class="t" for="stTel">เบอร์โทร</label><input type="text" id="stTel" autocomplete="off"></div>
     </div>
     <div class="staff">
-      <div><label class="t" for="gate">GATE ลาดกระบัง <small>หน้า SUMMARY ของ THLKR · 8 = TLC GATE 8 · 2 = ESCO GATE 2 · หรือพิมพ์เอง</small></label>
-        <input type="text" id="gate" list="gateList" autocomplete="off" placeholder="ว่าง = (GATE 2)">
-        <datalist id="gateList"><option value="8">(TLC GATE 8)</option><option value="2">(ESCO GATE 2)</option></datalist></div>
-      <div><label class="t">จะแสดงในเอกสาร</label><div style="display:flex;gap:12px;align-items:center"><span id="gateShow" style="padding:8px 0;font-weight:600"></span><button id="process" disabled>Process</button></div></div>
+      <div><label class="t" for="gate">GATE ลาดกระบัง <small>หน้า SUMMARY ของ THLKR</small></label>
+        <select id="gate"><option value="2">2 — LATKRABANG (ESCO GATE 2)</option><option value="8">8 — LATKRABANG (TIFFA GATE 8)</option></select></div>
     </div>
     <p class="rules">
       แยกตาม <b>DELIVERY</b> จาก CNTRS (<code>Port Of Delivery</code> และ SHED NUMBER):
@@ -133,7 +140,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29i</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29j</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -149,16 +156,10 @@ const ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "
 const TRANSIT = new Set(["MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"]);
 const RE_TRANSIT = new RegExp(`TRANSIT\\s+TO\\s+(${[...TRANSIT].join("|")})\\b`);
 // SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the GATE field
-const PLACE = { THLKR: "LATKRABANG (GATE 2)", THBMT: "BANGKOK MODERN TERMINAL", THSCT: "SIAM CONTAINER TERMINAL", THBKK: "BANGKOK" };
-const GATES = { "8": "(TLC GATE 8)", "2": "(ESCO GATE 2)" };
-// GATE field -> text after LATKRABANG: "8" -> (TLC GATE 8), "2" -> (ESCO GATE 2), empty -> (GATE 2)
-function gateText(gate) {
-  const g = (gate || "").trim().toUpperCase();
-  if (!g) return "(GATE 2)";
-  if (GATES[g]) return GATES[g];
-  if (/^\d+$/.test(g)) return `(GATE ${g})`;
-  return g.startsWith("(") ? g : `(${g})`;
-}
+const PLACE = { THLKR: "LATKRABANG (ESCO GATE 2)", THBMT: "BANGKOK MODERN TERMINAL", THSCT: "SIAM CONTAINER TERMINAL", THBKK: "BANGKOK" };
+const GATES = { "2": "(ESCO GATE 2)", "8": "(TIFFA GATE 8)" };   // the only Latkrabang gates in use
+// GATE field -> text after LATKRABANG: "2" -> (ESCO GATE 2), "8" -> (TIFFA GATE 8)
+const gateText = gate => GATES[String(gate).trim()] || GATES["2"];
 // SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 const SOC_STOP = new Set(["AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
   "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"]);
@@ -634,7 +635,7 @@ async function takeFiles(list) {
   const names = fs => fs.map(f => `<b>${escapeHtml(f.name)}</b>`).join(", ");
   $("mfText").innerHTML = [mfFiles().length && `MF: ${names(mfFiles())}`, cnFiles().length && `CNTRS: ${names(cnFiles())}`]
     .filter(Boolean).join(" · ") + (files.length ? " (คลิกเพื่อเพิ่มไฟล์ · ลบไฟล์ = เริ่มใหม่)" : "ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b>");
-  await run();
+  dirty();
   if (bad.length) $("msg").textContent = [bad.join("\n"), $("msg").textContent].filter(Boolean).join("\n");
   if (!mfFiles().length && cnFiles().length) $("msg").textContent = [$("msg").textContent, "ยังไม่มีไฟล์ MF"].filter(Boolean).join("\n");
 }
@@ -650,7 +651,7 @@ async function takeSig(files) {
   if (!file || !/^image\/(png|jpeg)$/.test(file.type)) { $("msg").textContent = "ลายเซ็นต้องเป็นรูป .png หรือ .jpg"; return; }
   const url = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
   if (!store.set(SIG_KEY, url)) { $("msg").textContent = "บันทึกลายเซ็นในเบราว์เซอร์นี้ไม่ได้"; return; }
-  showSig(); run();
+  showSig(); dirty();
 }
 
 // ---------- staff (each person keeps their own in this browser) ----------
@@ -662,18 +663,16 @@ function loadStaff() {
 let staffTimer = null;
 for (const id of ["stName", "stPos", "stTel"]) $(id).oninput = () => {
   store.set(STAFF_KEY, JSON.stringify(staffNow()));
-  clearTimeout(staffTimer); staffTimer = setTimeout(run, 400);
+  dirty();
 };
-const showGate = () => { $("gateShow").textContent = `LATKRABANG ${gateText($("gate").value)}`; };
-$("gate").oninput = () => { showGate(); clearTimeout(staffTimer); staffTimer = setTimeout(run, 400); };
-showGate();
+$("gate").onchange = dirty;
 
 // ---------- events ----------
 function update() { $("clear").disabled = !(files.length || report); $("process").disabled = !mfFiles().length; }
 function clearAll() {
   files = []; report = null; $("fileMf").value = ""; $("msg").textContent = "";
   $("mfText").innerHTML = "ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b>";
-  $("result").classList.add("hidden"); $("preview").innerHTML = ""; update();
+  $("result").classList.add("hidden"); $("preview").innerHTML = ""; dirty();
 }
 function wire(drop, input, take) {
   const d = $(drop);
@@ -685,9 +684,23 @@ function wire(drop, input, take) {
 }
 wire("dropMf", "fileMf", takeFiles);
 wire("dropSig", "fileSig", takeSig);
-$("clearSig").onclick = () => { store.del(SIG_KEY); showSig(); run(); };
+$("clearSig").onclick = () => { store.del(SIG_KEY); showSig(); dirty(); };
 $("clear").onclick = clearAll;
-$("process").onclick = () => { clearTimeout(staffTimer); run(); };
+$("process").onclick = async () => {
+  const b = $("process"); b.disabled = true; b.textContent = "กำลังประมวลผล…";
+  await run();
+  b.textContent = "Process"; update();
+  $("state").className = "hint";
+  $("state").textContent = report ? "ทำเอกสารแล้ว (แก้ไขข้อมูลแล้วกด Process อีกครั้ง)" : "ทำไม่สำเร็จ — ดูข้อความด้านล่าง";
+};
+// something changed after the last Process: the documents shown are out of date until Process is pressed again
+function dirty() {
+  update();
+  const st = $("state");
+  if (!mfFiles().length) { st.className = "hint"; st.textContent = "ใส่ไฟล์ MF (+ CNTRS) แล้วกด Process"; return; }
+  st.className = report ? "hint stale" : "hint";
+  st.textContent = report ? "มีการแก้ไข — กด Process เพื่อทำเอกสารใหม่" : "พร้อมแล้ว — กด Process";
+}
 $("tbody").onclick = e => { const tr = e.target.closest("tr.g"); if (tr) $("bl" + tr.dataset.i)?.classList.toggle("hidden"); };
 $("dlEdi").onclick = () => save(report.edi, "SUM-EDI.pdf");
 $("dlSum").onclick = () => save(report.sum, "SUMMARY.pdf");

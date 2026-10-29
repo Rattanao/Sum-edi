@@ -3,7 +3,7 @@ column) by DELIVERY (THLCH, THLKR, THBMT, THSCT, THBKK from the CNTRS container 
 TRANSHIPMENT, EMPTY), add the SOC containers from CNTRS (containers in CNTRS that are not in the manifest),
 and write SUMMARY.pdf + SUM-EDI.pdf.
 
-usage: python sum_mf.py [job folder | MF file] [output folder] [--cntrs FILE] [--gate 8|9|text]
+usage: python sum_mf.py [job folder | MF file] [output folder] [--cntrs FILE] [--gate 2|8]
                         [--name "MISS RATTANA"] [--position "Import Documentation"] [--tel "02-059 6253 (Direct)"]
   job folder (default: current folder): files are looked up in <job>/input, then <job>
   MF and CNTRS may each be Excel (.xls/.xlsx) or PDF, and may be split over several files
@@ -29,9 +29,9 @@ ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYS
 TRANSIT = {"MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"}
 TRANSITRE = re.compile(r"TRANSIT\s+TO\s+(" + "|".join(sorted(TRANSIT)) + r")\b")
 # SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the gate (--gate)
-PLACE = {"THLKR": "LATKRABANG (GATE 2)", "THBMT": "BANGKOK MODERN TERMINAL", "THSCT": "SIAM CONTAINER TERMINAL",
+PLACE = {"THLKR": "LATKRABANG (ESCO GATE 2)", "THBMT": "BANGKOK MODERN TERMINAL", "THSCT": "SIAM CONTAINER TERMINAL",
          "THBKK": "BANGKOK"}
-GATES = {"8": "(TLC GATE 8)", "2": "(ESCO GATE 2)"}
+GATES = {"2": "(ESCO GATE 2)", "8": "(TIFFA GATE 8)"}  # the only Latkrabang gates in use
 # SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 SOC_STOP = {"AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
             "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"}
@@ -350,12 +350,8 @@ def summary_page(doc, vessel_name, port, agent, left, place, gw, pkg, double=Fal
 
 
 def gate_text(gate):
-    """GATE field -> text after LATKRABANG: "8" -> (TLC GATE 8), "2" -> (ESCO GATE 2), empty -> (GATE 2)"""
-    g = (gate or "").strip().upper()
-    if not g: return "(GATE 2)"
-    if g in GATES: return GATES[g]
-    if g.isdigit(): return f"(GATE {g})"
-    return g if g.startswith("(") else f"({g})"
+    """--gate -> text after LATKRABANG: "2" -> (ESCO GATE 2), "8" -> (TIFFA GATE 8)"""
+    return GATES.get(str(gate).strip(), GATES["2"])
 
 
 def write_summary(path, vessel_name, port, main, summ, gate=""):
@@ -447,7 +443,7 @@ def main():
     ap.add_argument("job", nargs="?", default=".")
     ap.add_argument("out", nargs="?")
     ap.add_argument("--cntrs")
-    ap.add_argument("--gate", default="", help='LATKRABANG gate: 8 = (TLC GATE 8), 2 = (ESCO GATE 2), or any text')
+    ap.add_argument("--gate", default="2", choices=sorted(GATES), help="LATKRABANG gate: 2 = (ESCO GATE 2), 8 = (TIFFA GATE 8)")
     for k, v in STAFF.items(): ap.add_argument("--" + k, default=v)
     a = ap.parse_args()
     mf, cntrs, out = find_files(a.job, a.cntrs)
