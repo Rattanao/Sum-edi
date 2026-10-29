@@ -133,7 +133,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29f</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29g</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -511,20 +511,20 @@ async function buildSumEdi(vessel, port, summ, T, soc, staff) {
   p.text(X[5] - 6, yt, f0(T.pkg), 9, { ...B, right: true });
   let yb = bottom + 34;
   if (soc.length) {                               // SOC containers: other owners, not in the manifest
-    let w = p.text(54, yb, "***", 7.5, A); w += p.text(54 + w, yb, "SOC", 7.5, { ...A, underline: true });
-    p.text(54 + w, yb, "***", 7.5, A);
-    yb += 20;
+    let w = p.text(54, yb, "***", 9.5, A); w += p.text(54 + w, yb, "SOC", 9.5, { ...A, underline: true });
+    p.text(54 + w, yb, "***", 9.5, A);
+    yb += 24;
     soc.forEach((s, i) => {
-      const ys = yb + i * 19;
-      p.text(54, ys, s.owner, 7.5, { ...A, max: 100 });
-      p.text(160, ys, `${s.size}'`, 7.5, A);
-      p.text(212, ys, String(s.cntrs.length), 7.5, { ...A, right: true }); p.text(216, ys, "CNTRS", 7.5, A);
-      p.text(279, ys, "[SUM-EDI, MANIFEST AS PER ATTACHED]", 7.5, A);
+      const ys = yb + i * 22;
+      p.text(54, ys, s.owner, 9.5, { ...A, max: 100 });
+      p.text(170, ys, `${s.size}'`, 9.5, A);
+      p.text(232, ys, String(s.cntrs.length), 9.5, { ...A, right: true }); p.text(237, ys, "CNTRS", 9.5, A);
+      p.text(300, ys, "[SUM-EDI, MANIFEST AS PER ATTACHED]", 9.5, A);
     });
-    const yg = yb + soc.length * 19 + 2;
-    p.text(54, yg, "GRAND TOTAL", 7.5, { ...A, underline: true });
-    p.text(212, yg, String(T.cntrs + soc.reduce((s, x) => s + x.cntrs.length, 0)), 7.5, { ...A, right: true, underline: true });
-    p.text(216, yg, "CNTRS", 7.5, { ...A, underline: true });
+    const yg = yb + soc.length * 22 + 4;
+    p.text(54, yg, "GRAND TOTAL", 9.5, { ...A, underline: true });
+    p.text(232, yg, String(T.cntrs + soc.reduce((s, x) => s + x.cntrs.length, 0)), 9.5, { ...A, right: true, underline: true });
+    p.text(237, yg, "CNTRS", 9.5, { ...A, underline: true });
     yb = yg + 20;
   }
   yb = Math.max(yb + 14, 700);

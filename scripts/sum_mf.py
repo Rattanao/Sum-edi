@@ -417,19 +417,19 @@ def write_sum_edi(path, vessel, port, summ, T, soc, staff):
     text(pg, X[5] - 6, yt, f"{T['pkg']:,}", 9, right=True, font="tb")
     yb = bottom + 34
     if soc:                                          # SOC containers: other owners, not in the manifest
-        w = text(pg, 54, yb, "***", 7.5, font="ab"); w += text(pg, 54 + w, yb, "SOC", 7.5, font="ab", underline=True)
-        text(pg, 54 + w, yb, "***", 7.5, font="ab")
-        yb += 20
+        w = text(pg, 54, yb, "***", 9.5, font="ab"); w += text(pg, 54 + w, yb, "SOC", 9.5, font="ab", underline=True)
+        text(pg, 54 + w, yb, "***", 9.5, font="ab")
+        yb += 24
         for i, s in enumerate(soc):
-            ys = yb + i * 19
-            text(pg, 54, ys, s["owner"], 7.5, font="ab", maxw=100)
-            text(pg, 160, ys, s["size"], 7.5, font="ab")
-            text(pg, 212, ys, f"{len(s['cntrs'])}", 7.5, right=True, font="ab"); text(pg, 216, ys, "CNTRS", 7.5, font="ab")
-            text(pg, 279, ys, "[SUM-EDI, MANIFEST AS PER ATTACHED]", 7.5, font="ab")
-        yg = yb + len(soc) * 19 + 2
-        text(pg, 54, yg, "GRAND TOTAL", 7.5, font="ab", underline=True)
-        text(pg, 212, yg, f"{T['cntrs'] + sum(len(s['cntrs']) for s in soc)}", 7.5, right=True, font="ab", underline=True)
-        text(pg, 216, yg, "CNTRS", 7.5, font="ab", underline=True)
+            ys = yb + i * 22
+            text(pg, 54, ys, s["owner"], 9.5, font="ab", maxw=100)
+            text(pg, 170, ys, s["size"], 9.5, font="ab")
+            text(pg, 232, ys, f"{len(s['cntrs'])}", 9.5, right=True, font="ab"); text(pg, 237, ys, "CNTRS", 9.5, font="ab")
+            text(pg, 300, ys, "[SUM-EDI, MANIFEST AS PER ATTACHED]", 9.5, font="ab")
+        yg = yb + len(soc) * 22 + 4
+        text(pg, 54, yg, "GRAND TOTAL", 9.5, font="ab", underline=True)
+        text(pg, 232, yg, f"{T['cntrs'] + sum(len(s['cntrs']) for s in soc)}", 9.5, right=True, font="ab", underline=True)
+        text(pg, 237, yg, "CNTRS", 9.5, font="ab", underline=True)
         yb = yg + 20
     yb = max(yb + 14, 700)
     text(pg, 54, yb, "DATA SUBMITTED TO THE PORT BY ........................", 9, font="tr")
