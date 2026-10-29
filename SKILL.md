@@ -5,7 +5,7 @@ description: >
   export that has the "1) SHED NO. / 2) country (XX) / 3) CARGO MOVEMENT" column) into the main port
   (LAEM CHABANG = LCH or BANGKOK, from PORT OF DISCHARGE), LKB (GATE2) (SHED NO. 0332) and the transit
   countries MYANMAR / LAOS / MALAYSIA (CARGO MOVEMENT 7-TRANSIT, country MM / LA / MY); adds the SOC
-  containers (in CNTRS.xls but not in the manifest, e.g. BEN LINE / NS) as yellow lines and a GRAND
+  containers (in CNTRS.xls but not in the manifest, e.g. BEN LINE / NS) as own lines and a GRAND
   TOTAL; then writes output/SUM-EDI.pdf (A4 cover table, English) and output/SUMMARY.pdf (one signed
   landscape page per group). Use whenever the user says "summary", "sum-edi", "SUM-EDI", "ทำ summary",
   "แยก MF", "แยกย่อยเป็นไฟล์ SUM-EDI / SUMMARY", "ตู้ SOC", or points to an MF*/MANIFEST*.xls (with or
@@ -31,7 +31,7 @@ letterhead image at the top keeps its Thai address.
 - SUMMARY title: `SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT <PORT>`. Page order: main port, transit countries, LKB.
 - B/L count includes house B/Ls (…A, …B).
 - Container size: from CNTRS (`(20')` / `(40')`) when given, else the B/L type code (`22G0` = 20', `45G0` / `45R1` = 40'). Containers are counted once per group.
-- **SOC**: containers in CNTRS that are not in the manifest. Grouped by owner = CONSIGNEE cut at the first word like AGENCIES / INTERNATIONAL / (THAILAND) / CO.,LTD. (`BEN LINE AGENCIES (THAILAND) LTD.` → BEN LINE, `NS INTERNATIONAL (THAILAND) CO.,LTD.` → NS) and size. Each is a yellow line under TOTAL: `<OWNER>  20' :  n CNTRS  [SUM-EDI, MANIFEST AS PER ATTACHED]`, then `GRAND TOTAL  <TOTAL + SOC> CNTRS` (bold, underlined). SOC has no weight/packages and is not on SUMMARY.
+- **SOC**: containers in CNTRS that are not in the manifest. Grouped by owner = CONSIGNEE cut at the first word like AGENCIES / INTERNATIONAL / (THAILAND) / CO.,LTD. (`BEN LINE AGENCIES (THAILAND) LTD.` → BEN LINE, `NS INTERNATIONAL (THAILAND) CO.,LTD.` → NS) and size. Each is a line under TOTAL (no colour in the PDF): `<OWNER>  20' :  n CNTRS  [SUM-EDI, MANIFEST AS PER ATTACHED]`, then `GRAND TOTAL  <TOTAL + SOC> CNTRS` (bold, underlined). SOC has no weight/packages and is not on SUMMARY.
 - Weight and packages = sum of the B/Ls in the group. TOTAL must equal the MF **GRAND TOTAL**; the script prints OK / MISMATCH.
 - SUM-EDI table: at least 4 rows and always one ruled blank row before TOTAL. Headers: NO. OF CONTAINERS | NO. OF B/L (D/O) | TOTAL GROSS WEIGHT (KGS) | TOTAL NO. OF PACKAGES. Footer: `DATA SUBMITTED TO THE PORT BY ...` 1. EDI 2. E-MAIL, then the staff block (name / position / TEL).
 - Staff block: default MISS RATTANA / Import Documentation / 02-059 6253 (Direct). Other staff: `--name`, `--position`, `--tel` (web: the three fields, kept per browser).

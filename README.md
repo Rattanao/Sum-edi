@@ -3,7 +3,7 @@
 โปรแกรมอ่านไฟล์ MF / MANIFEST (CARGO MANIFEST ทั้งลำ แบบ .xls/.xlsx ที่มีช่อง `1) SHED NO.` / `2) ประเทศ (XX)` / `3) CARGO MOVEMENT`)
 และไฟล์ CNTRS.xls (CONTAINER LIST, ไม่ใส่ก็ได้) แล้วแยก B/L เป็นกลุ่มตามท่าเรือ / Transit แยกตู้ SOC จากนั้นทำ 2 ไฟล์
 
-- `SUM-EDI.pdf` ใบสรุป A4 หัวจดหมาย HEUNG A LINE: จำนวนตู้ 20'/40', จำนวน B/L, น้ำหนักรวม (KGS), จำนวนหีบห่อ ของแต่ละกลุ่ม, TOTAL, บรรทัดตู้ SOC (สีเหลือง) และ GRAND TOTAL
+- `SUM-EDI.pdf` ใบสรุป A4 หัวจดหมาย HEUNG A LINE: จำนวนตู้ 20'/40', จำนวน B/L, น้ำหนักรวม (KGS), จำนวนหีบห่อ ของแต่ละกลุ่ม, TOTAL, บรรทัดตู้ SOC และ GRAND TOTAL
 - `SUMMARY.pdf` หน้า "SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT LAEM CHABANG / BANGKOK" กลุ่มละ 1 หน้า (แนวนอน) พร้อมลายเซ็น
 
 เนื้อหาในเอกสารเป็นภาษาอังกฤษทั้งหมด ยกเว้นหัวจดหมาย (ที่อยู่ด้านบน)
@@ -16,7 +16,7 @@
 | LKB (GATE2) | `1) SHED NO. 0332` | LAEM CHABANG / LKB (ESCO GATE 2) |
 | MYANMAR / LAOS / MALAYSIA | `3) CARGO MOVEMENT (7-TRANSIT)` และรหัสประเทศ `MM` / `LA` / `MY` | \*CARGO INTRANSIT TO … P.D.R. VIA … |
 
-- **ตู้ SOC** = ตู้ที่อยู่ใน CNTRS แต่ไม่มีใน MF แยกตามเจ้าของ (CONSIGNEE เช่น `BEN LINE AGENCIES (THAILAND) LTD.` → BEN LINE, `NS INTERNATIONAL (THAILAND) CO.,LTD.` → NS) และขนาดตู้ แสดงเป็นบรรทัดสีเหลืองใต้ TOTAL พร้อม `[SUM-EDI, MANIFEST AS PER ATTACHED]` แล้วรวมเป็น **GRAND TOTAL** (ตัวอย่าง: 60 + 1 + 21 = 82 CNTRS)
+- **ตู้ SOC** = ตู้ที่อยู่ใน CNTRS แต่ไม่มีใน MF แยกตามเจ้าของ (CONSIGNEE เช่น `BEN LINE AGENCIES (THAILAND) LTD.` → BEN LINE, `NS INTERNATIONAL (THAILAND) CO.,LTD.` → NS) และขนาดตู้ แสดงเป็นบรรทัดแยกใต้ TOTAL (เอกสารไม่มีสี) พร้อม `[SUM-EDI, MANIFEST AS PER ATTACHED]` แล้วรวมเป็น **GRAND TOTAL** (ตัวอย่าง: 60 + 1 + 21 = 82 CNTRS)
 - จำนวน B/L นับรวม House B/L (…A, …B)
 - ขนาดตู้จาก CNTRS ถ้าไม่มี ใช้รหัสประเภทตู้: `22G0` = 20' · `45G0` / `45R1` = 40' (ตู้เดียวกันนับครั้งเดียว)
 - ยอดรวมทุกกลุ่มต้องเท่ากับ **GRAND TOTAL** ของ MF (โปรแกรมแจ้งว่าตรงหรือไม่ตรง)

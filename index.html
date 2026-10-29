@@ -126,7 +126,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29a</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29b</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -263,7 +263,6 @@ function pen(page, fonts) {
       page.drawLine({ start: { x: x0, y: H - y0 }, end: { x: x1, y: H - y1 }, thickness,
                       color: PDFLib.rgb(gray, gray, gray), ...(dashed ? { dashArray: [1, 1.5] } : {}) });
     },
-    fill(x0, y0, x1, y1, color) { page.drawRectangle({ x: x0, y: H - y1, width: x1 - x0, height: y1 - y0, color }); },
     image(ref, x, y, w, h) { page.drawImage(ref, { x, y: H - y - h, width: w, height: h }); },
   };
 }
@@ -349,11 +348,10 @@ async function buildSumEdi(vessel, summ, T, soc, staff) {
   p.text(412, yt, f3(T.gw), 8.5, { right: true });
   p.text(514, yt, f0(T.pkg), 8.5, { right: true });
   let yb = yt + 30;
-  if (soc.length) {                               // SOC containers: not in the manifest, own lines in yellow
+  if (soc.length) {                               // SOC containers: not in the manifest, own lines
     const B = { font: fonts.b };
     soc.forEach((s, i) => {
       const ys = yb + i * 16;
-      p.fill(45, ys - 11, 518, ys + 4, PDFLib.rgb(1, 1, 0));
       p.text(118, ys, s.owner, 8, { ...B, right: true });
       p.text(128, ys, `${s.size}' :`, 8, B);
       p.text(205, ys, String(s.cntrs.length), 8, { ...B, right: true }); p.text(210, ys, "CNTRS", 8, B);

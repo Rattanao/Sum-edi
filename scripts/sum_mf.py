@@ -142,7 +142,6 @@ TIMES, TIMESB = r"C:\Windows\Fonts\times.ttf", r"C:\Windows\Fonts\timesbd.ttf"
 FONTFILES = {"tr": TIMES, "tb": TIMESB, "th": r"C:\Windows\Fonts\tahoma.ttf", "thb": r"C:\Windows\Fonts\tahomabd.ttf"}
 AGENT1 = "HEUNG A LINE CO., LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD."
 AGENT2 = "HEUNG A LINE CO.,LTD C/O HEUNG-A SHIPPING (THAILAND) CO.,LTD."
-YELLOW = (1, 1, 0)
 
 
 def text(pg, x, y, s, size=8, bold=False, right=False, underline=False, font=None):
@@ -226,10 +225,9 @@ def write_sum_edi(path, vessel_name, summ, T, soc, staff):
     text(pg, 412, yt, f"{T['gw']:,.3f}", 8.5, right=True, font="th")
     text(pg, 514, yt, f"{T['pkg']:,}", 8.5, right=True, font="th")
     yb = yt + 30
-    if soc:                                          # SOC containers: not in the manifest, own lines in yellow
+    if soc:                                          # SOC containers: not in the manifest, own lines
         for i, s in enumerate(soc):
             ys = yb + i * 16
-            pg.draw_rect(pymupdf.Rect(45, ys - 11, 518, ys + 4), color=None, fill=YELLOW)
             text(pg, 118, ys, s["owner"], 8, right=True, font="thb")
             text(pg, 128, ys, f"{s['size']} :", 8, font="thb")
             text(pg, 205, ys, f"{len(s['cntrs'])}", 8, right=True, font="thb"); text(pg, 210, ys, "CNTRS", 8, font="thb")
