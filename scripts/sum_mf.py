@@ -1,11 +1,12 @@
-"""SUM-EDI: split one full MF / MANIFEST .xls (CARGO MANIFEST with the SHED NO. / country / CARGO MOVEMENT
+"""SUM-EDI: split one full MF / MANIFEST .xls or .pdf (CARGO MANIFEST with the SHED NO. / country / CARGO MOVEMENT
 column) by DELIVERY (THLCH, THLKR, THBMT, THSCT, THBKK from the CNTRS container list, the transit countries,
 TRANSHIPMENT, EMPTY), add the SOC containers from CNTRS (containers in CNTRS that are not in the manifest),
 and write SUMMARY.pdf + SUM-EDI.pdf.
 
-usage: python sum_mf.py [job folder | MF file] [output folder] [--cntrs FILE]
+usage: python sum_mf.py [job folder | MF file] [output folder] [--cntrs FILE] [--gate 8|9|text]
                         [--name "MISS RATTANA"] [--position "Import Documentation"] [--tel "02-059 6253 (Direct)"]
   job folder (default: current folder): files are looked up in <job>/input, then <job>
+  MF and CNTRS may each be Excel (.xls/.xlsx) or PDF, and may be split over several files
   output folder default: <job>/output
 """
 import sys, os, re, glob, argparse
@@ -26,6 +27,7 @@ PORTS = {"LAEM CHABANG": "THLCH", "BANGKOK": "THBKK"}  # port of discharge -> de
 ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
          "TRANSHIPMENT", "EMPTY"]
 TRANSIT = {"MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"}
+TRANSITRE = re.compile(r"TRANSIT\s+TO\s+(" + "|".join(sorted(TRANSIT)) + r")\b")
 # SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the gate (--gate)
 PLACE = {"THLKR": "LATKRABANG (GATE 2)", "THBMT": "BANGKOK MODERN TERMINAL", "THSCT": "SIAM CONTAINER TERMINAL",
          "THBKK": "BANGKOK"}
@@ -36,34 +38,125 @@ SOC_STOP = {"AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO
 STAFF = dict(name="MISS RATTANA", position="Import Documentation", tel="02-059 6253 (Direct)")
 
 
-def xls_files(d):
-    return [f for f in glob.glob(os.path.join(d, "*.xls*")) if not os.path.basename(f).startswith("~$")]
+def input_files(d):
+    return [f for f in glob.glob(os.path.join(d, "*")) if re.search(r"\.(xlsx?|pdf)$", f, re.I)
+            and not os.path.basename(f).startswith("~$")]
 
 
-def is_cntrs(f):
-    """the CNTRS container list (any file name, e.g. CNTRS.xls or INWARD.xls) says CONTAINER LIST FOR FEEDER"""
+def pdf_lines(path):
+    """text lines of a PDF, words of one line joined left to right. The bigger page-header text is kept on its
+    own line, so a header printed over a container row does not mix with it."""
+    out = []
+    for pg in pymupdf.open(path):
+        sp = []
+        for b in pg.get_text("dict")["blocks"]:
+            for l in b.get("lines", []):
+                for t in l["spans"]:
+                    if t["text"].strip(): sp.append((t["origin"][1], t["size"] >= 11, t["origin"][0], t["text"].strip()))
+        sp.sort()
+        rows = []
+        for y, big, x, t in sp:
+            r = next((r for r in rows[-4:] if abs(r[0] - y) <= 2 and r[1] == big), None)
+            if r: r[2].append((x, t))
+            else: rows.append([y, big, [(x, t)]])
+        out += [" ".join(t for x, t in sorted(r[2])) for r in rows]
+    return out
+
+
+def kind_of(f):
+    """-> ("cntrs" (CONTAINER LIST FOR FEEDER) / "mf" (CARGO MANIFEST) / "", voyage e.g. 2611S) - by content, any file name"""
     try:
-        s = xlrd.open_workbook(f, logfile=open(os.devnull, "w")).sheet_by_index(0)
-        return any("CONTAINER LIST" in " ".join(str(x) for x in s.row_values(r)) for r in range(min(s.nrows, 15)))
+        if f.lower().endswith(".pdf"): head = " ".join(pdf_lines(f)[:15])
+        else:
+            s = xlrd.open_workbook(f, logfile=open(os.devnull, "w")).sheet_by_index(0)
+            head = " ".join(" ".join(str(x) for x in s.row_values(r)) for r in range(min(s.nrows, 15)))
     except Exception:
-        return os.path.basename(f).upper().startswith("CNTRS")
+        return "", ""
+    m = re.search(r"\b(\d{4}[NSEW])\b", head)
+    voy = m.group(1) if m else ""
+    if "CONTAINER LIST" in head: return "cntrs", voy
+    if "CARGO MANIFEST" in head or "VESSEL & VOYAGE" in head: return "mf", voy
+    return "", voy
 
 
 def find_files(arg, cntrs):
+    """-> (MF files, CNTRS files, output folder). MF and CNTRS may each be split over several files; only the
+    files of the same voyage as the MF are used (a folder may hold files of other vessels)."""
     if os.path.isfile(arg):
-        base = os.path.dirname(os.path.abspath(arg)); mf = arg; out = os.path.join(base, "output"); dirs = [base]
+        base = os.path.dirname(os.path.abspath(arg)); mf = [arg]; out = os.path.join(base, "output"); dirs = [base]
     else:
-        dirs = [os.path.join(arg, "input"), arg]; out = os.path.join(arg, "output"); mf = None
-        for d in dirs:
-            files = [f for f in xls_files(d) if not is_cntrs(f)]
+        dirs = [os.path.join(arg, "input"), arg]; out = os.path.join(arg, "output"); mf = []
+    cn = [cntrs] if cntrs else []
+    for d in dirs:
+        kinds = {f: kind_of(f) for f in sorted(input_files(d)) if f not in mf + cn}
+        if not mf:
             rank = lambda f: (0 if os.path.basename(f).upper().startswith("MF") else 1 if os.path.basename(f).upper().startswith("MANIFEST") else 2, f)
-            if files: mf = sorted(files, key=rank)[0]; break
-        if not mf: sys.exit(f"!! No MF / MANIFEST file (.xls/.xlsx) in {arg}\\input or {arg}")
-    if cntrs is None:
-        for d in dirs:
-            c = [f for f in xls_files(d) if is_cntrs(f)]
-            if c: cntrs = sorted(c)[0]; break
-    return mf, cntrs, out
+            mf = sorted((f for f, k in kinds.items() if k[0] == "mf"), key=rank)
+        if mf:
+            voy = kind_of(mf[0])[1]
+            same = lambda f: not voy or kinds.get(f, ("", ""))[1] in (voy, "")
+            mf = [mf[0]] + [f for f in mf[1:] if same(f)]
+            if not cn: cn = [f for f, k in kinds.items() if k[0] == "cntrs" and same(f)]
+            break
+    if not mf: sys.exit(f"!! No MF / MANIFEST file (.xls/.xlsx/.pdf) in {arg}\\input or {arg}")
+    return mf, cn, out
+
+
+def new_bl():
+    return dict(pkg=0, gw=0.0, shed="", country="", transit=False, tranship=False, cntrs=[], types=[])
+
+
+def read_mf_pdf(path):
+    """MF / MANIFEST printed to PDF: same fields as the Excel export, read from the text lines"""
+    bls, cur, vessel, port, total, in_gt = {}, None, "", "", None, False
+    for l in pdf_lines(path):
+        m = re.search(r"VESSEL & VOYAGE\s+(.*?)\s+NATIONALITY", l)
+        if m and not vessel: vessel = m.group(1).strip()
+        m = re.search(r"PORT OF DISCHARGE\s+(.*?)\s+NEXT PORT", l)
+        if m and not port: port = m.group(1).strip()
+        if "GRAND TOTAL" in l: in_gt, total = True, [0.0, 0]
+        if in_gt:
+            m = re.search(r"GROSSWEIGHT:\s*([\d,.]+)", l)
+            if m: total[0] = num(m.group(1))
+            m = re.search(r"TOTAL PACK:\s*([\d,]+)", l)
+            if m: total[1] = int(num(m.group(1))); in_gt = False
+        m = re.match(r"^(HASL[A-Z0-9]{10,14})\b", l)
+        if m:
+            cur = m.group(1); bls[cur] = b = new_bl()
+            m = re.search(r"\b(\d[\d,]*)\s+[A-Z]{2}\s*\(", l)
+            if m: b["pkg"] = int(num(m.group(1)))
+        if cur is None: continue
+        if re.match(r"(PortOfDischarge|VESSEL & VOYAGE|.*PORT TOTAL|.*GRAND TOTAL)", l): cur = None; continue
+        b = bls[cur]
+        m = re.search(r"([\d,]+\.\d+)\s*KGM", l)
+        if m and not b["gw"]: b["gw"] = num(m.group(1))
+        m = re.search(r"SHED NO\.\s*(\d+)", l)
+        if m: b["shed"] = m.group(1)
+        m = re.search(r"\b2\)[^()]*\(([A-Z]{2})\)", l)
+        if m: b["country"] = m.group(1)
+        if "CARGO MOVEMENT" in l and "TRANSIT" in l: b["transit"] = True
+        if "CARGO MOVEMENT" in l and "TRANSHIP" in l: b["tranship"] = True
+        b["cntrs"] += re.findall(r"\b\d+\.\s*([A-Z]{4}\d{7})\b", l)
+        b["types"] += re.findall(r"\b(\d{2}[A-Z]\d)X\d+\b", l)
+        b.setdefault("text", []).append(l)
+    for b in bls.values():               # MF without the country column: a B/L whose text says TRANSIT and names a
+        t = " ".join(b.pop("text", []))  # transit country goes to that country (the one named most often)
+        if not b["country"] and "TRANSIT" in t:
+            n = {c: len(re.findall(r"\b" + c + r"\b", t)) for c in TRANSIT - {"VIETNAM"}}
+            n["LAOS"] += len(re.findall(r"\bLAO\b", t))
+            if max(n.values()): b["mention"] = max(n, key=n.get)
+    return vessel, port, bls, tuple(total) if total else None
+
+
+def read_mf_all(paths):
+    """one or more MF files (Excel or PDF) -> vessel, port, B/L, MF GRAND TOTAL (summed over the files)"""
+    vessel, port, bls, total = "", "", {}, None
+    for f in paths:
+        v, p, b, t = read_mf_pdf(f) if f.lower().endswith(".pdf") else read_mf(f)
+        vessel, port = vessel or v, port or p
+        bls.update(b)
+        if t: total = (round((total or (0, 0))[0] + t[0], 3), (total or (0, 0))[1] + t[1])
+    return vessel, port, bls, total
 
 
 def read_mf(path):
@@ -77,7 +170,7 @@ def read_mf(path):
         if "GRAND TOTAL" in line: gt = r
         if BLRE.match(v[0]):
             cur = v[0]
-            bls[cur] = dict(pkg=0, gw=0.0, shed="", country="", transit=False, tranship=False, cntrs=[], types=[])
+            bls[cur] = new_bl()
         if cur is None: continue
         if v[0].startswith("PortOfDischarge") or "PORT TOTAL" in line or "GRAND TOTAL" in line:
             cur = None; continue
@@ -103,8 +196,33 @@ def read_mf(path):
     return vessel, port, bls, total
 
 
+def read_cntrs_pdf(path, discharge):
+    """CNTRS container list printed to PDF -> same as read_cntrs"""
+    out, deliv, shed = {}, discharge, ""
+    for l in pdf_lines(path):
+        m = re.search(r"Port Of Delivery\s+([A-Z]{5})", l)
+        if m: deliv = m.group(1)
+        m = re.match(r"SHED NUMBER:\s*(\d+)", l)
+        if m: shed = m.group(1).zfill(4)
+        m = re.match(r"^([A-Z]{4}\d{7})\s+\d+\s+\S+\s+(\w{4})\s*\((\d\d)'\)\s*(.*?)\s*[\d,]+\.\d+\s*KGM\s*(\S*)", l)
+        if not m: continue
+        d = SHED_DELIVERY.get(shed, deliv) if deliv == discharge else deliv
+        t = TRANSITRE.search(l)
+        out.setdefault(m.group(1), ("20'" if m.group(3) == "20" else "40'", m.group(4),
+                                    m.group(5).startswith("4=") or "MTY" in m.group(5), d, t.group(1) if t else ""))
+    return out
+
+
+def read_cntrs_all(paths, discharge):
+    out = {}
+    for f in paths:
+        for c, x in (read_cntrs_pdf(f, discharge) if f.lower().endswith(".pdf") else read_cntrs(f, discharge)).items():
+            out.setdefault(c, x)
+    return out
+
+
 def read_cntrs(path, discharge):
-    """CNTRS container list -> {container: (size "20'"/"40'", consignee, empty, delivery)}"""
+    """CNTRS container list -> {container: (size "20'"/"40'", consignee, empty, delivery, transit country in REMARK)}"""
     s = xlrd.open_workbook(path, logfile=open(os.devnull, "w")).sheet_by_index(0)
     out, deliv, shed = {}, discharge, ""
     for r in range(s.nrows):
@@ -119,7 +237,9 @@ def read_cntrs(path, discharge):
         size = (m.group(1) if m else "") or ("20" if re.search(r"\b2\d[A-Z]\d\b", " ".join(v[3:9])) else "40")
         status = next((x for x in v[15:23] if re.match(r"\d=", x)), "")
         d = SHED_DELIVERY.get(shed, deliv) if deliv == discharge else deliv
-        out.setdefault(v[0], ("20'" if size == "20" else "40'", v[9], bool(re.match(r"4=", status) or "MTY" in status), d))
+        t = TRANSITRE.search(" ".join(v[20:]))
+        out.setdefault(v[0], ("20'" if size == "20" else "40'", v[9], bool(re.match(r"4=", status) or "MTY" in status), d,
+                              t.group(1) if t else ""))
     return out
 
 
@@ -135,13 +255,16 @@ def group_of(b, main, cn_list):
     """DELIVERY row of a B/L: transit country, TRANSHIPMENT, else the delivery of its containers in CNTRS"""
     if b["transit"] and b["country"] not in ("", "TH"): return COUNTRY.get(b["country"], b["country"])
     if b["tranship"]: return "TRANSHIPMENT"
+    if not b["country"]:                 # MF without the country column: "TRANSIT TO <COUNTRY>" in the CNTRS REMARK
+        t = next((cn_list[c][4] for c in b["cntrs"] if c in cn_list and cn_list[c][4]), "")
+        if t or b.get("mention"): return t or b["mention"]
     for c in b["cntrs"]:
         if c in cn_list: return cn_list[c][3]
     return SHED_DELIVERY.get(b["shed"], main)
 
 
 def summarize(bls, main, cn_list):
-    size = {c: s for c, (s, _, _, _) in cn_list.items()}
+    size = {c: x[0] for c, x in cn_list.items()}
     for b in bls.values():
         for c in b["cntrs"]:
             if b["types"]: size.setdefault(c, "20'" if b["types"][0][0] == "2" else "40'")
@@ -161,7 +284,7 @@ def summarize(bls, main, cn_list):
     #   HEUNG A, not empty -> counted in its DELIVERY row; HEUNG A empty (4=MTY) -> EMPTY row in the table;
     #   any other owner -> ***SOC*** lines under GRAND TOTAL
     extra, empty_l = {}, []
-    for c, (sz, cons, empty, d) in cn_list.items():
+    for c, (sz, cons, empty, d, _) in cn_list.items():
         if c in in_mf: continue
         if not HALRE.search(cons): soc.setdefault((soc_owner(cons), sz), []).append(c)
         elif empty: empty_l.append(c)
@@ -330,13 +453,13 @@ def main():
     mf, cntrs, out = find_files(a.job, a.cntrs)
     out = a.out or out
     os.makedirs(out, exist_ok=True)
-    vessel, port, bls, GT = read_mf(mf)
-    if not bls: sys.exit(f"!! No B/L (HASL...) in {mf}")
-    if not any(b["shed"] for b in bls.values()):
-        sys.exit("!! This file has no 1) SHED NO. / 2) country / 3) CARGO MOVEMENT column - use the full MF export")
+    vessel, port, bls, GT = read_mf_all(mf)
+    if not bls: sys.exit(f"!! No B/L (HASL...) in {', '.join(mf)}")
+    if not any(b["shed"] for b in bls.values()) and not cntrs:
+        sys.exit("!! The MF has no 1) SHED NO. / 2) country / 3) CARGO MOVEMENT column - give the CNTRS file too, or use the full MF export")
     port = port or "LAEM CHABANG"
     main_code = PORTS.get(port, "TH" + port[:3])
-    cn_list = read_cntrs(cntrs, main_code) if cntrs else {}
+    cn_list = read_cntrs_all(cntrs, main_code)
     summ, soc, nosize, not_in_cntrs = summarize(bls, main_code, cn_list)
     summ = [x for x in summ if x["cntrs"] or x["bls"]]
     T = dict(bls=sum(x["bls"] for x in summ), cntrs=sum(x["cntrs"] for x in summ),
@@ -346,7 +469,7 @@ def main():
     write_summary(os.path.join(out, "SUMMARY.pdf"), vessel_name, port, main_code, [x for x in summ if not x.get("empty")], a.gate)
     write_sum_edi(os.path.join(out, "SUM-EDI.pdf"), vessel, port, summ, T, soc, staff)
 
-    print(f"MF: {mf}\nCNTRS: {cntrs or '- (no SOC check)'}\nVESSEL: {vessel}   PORT: {port}")
+    print(f"MF: {', '.join(mf)}\nCNTRS: {', '.join(cntrs) or '- (no SOC check)'}\nVESSEL: {vessel}   PORT: {port}")
     for x in summ:
         print(f"{x['g']:13} {x['n20']:>3}x20' {x['n40']:>3}x40' BL {x['bls']:>3} {x['gw']:>14,.3f} KGS {x['pkg']:>7,} PKGS")
         if x.get("extra"): print(f"              + HEUNG A not in MF: {', '.join(x['extra'])}")

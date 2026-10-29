@@ -1,7 +1,7 @@
 # SUM-EDI — แยก MF ตาม DELIVERY เป็น SUM-EDI.pdf + SUMMARY.pdf (+ ตู้ SOC)
 
-โปรแกรมอ่านไฟล์ MF / MANIFEST (CARGO MANIFEST ทั้งลำ แบบ .xls/.xlsx ที่มีช่อง `1) SHED NO.` / `2) ประเทศ (XX)` / `3) CARGO MOVEMENT`)
-และไฟล์ CNTRS (CONTAINER LIST FOR FEEDER ชื่อไฟล์อะไรก็ได้ เช่น CNTRS.xls / INWARD.xls) แล้วแยก B/L ตาม **DELIVERY** แยกตู้ SOC จากนั้นทำ 2 ไฟล์
+โปรแกรมอ่านไฟล์ MF / MANIFEST (CARGO MANIFEST ทั้งลำ เป็น Excel หรือ PDF ก็ได้ ที่มีช่อง `1) SHED NO.` / `2) ประเทศ (XX)` / `3) CARGO MOVEMENT`)
+และไฟล์ CNTRS (CONTAINER LIST FOR FEEDER เป็น Excel หรือ PDF ชื่อไฟล์อะไรก็ได้ เช่น CNTRS.xls / INWARD.xls / CNTRS-A0.pdf แยกหลายไฟล์ก็ได้) แล้วแยก B/L ตาม **DELIVERY** แยกตู้ SOC จากนั้นทำ 2 ไฟล์
 
 - `SUM-EDI.pdf` ใบสรุป A4 หัวจดหมาย HEUNG A LINE: AGENT / TAX ID / VESSEL / DISCHARGE และตาราง DELIVERY | TOTAL CNTRS | TOTAL B/L | TOTAL GROSS WEIGHT | TOTAL PKGS, GRAND TOTAL, บรรทัดตู้ SOC และ GRAND TOTAL รวม SOC
 - `SUMMARY.pdf` หน้า "SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT …" (แนวนอน) พร้อมลายเซ็น
@@ -29,7 +29,7 @@
 
 เปิดที่ **https://rattanao.github.io/Sum-edi/**
 
-1. ลากไฟล์ MF และ CNTRS (.xls / .xlsx) มาวางพร้อมกันในช่องเดียว เว็บแยกเองว่าไฟล์ไหนเป็น MF ไฟล์ไหนเป็น CNTRS แล้วแสดงตารางทันที (คลิกชื่อกลุ่มเพื่อดู B/L คลิกแถว SOC เพื่อดูเลขตู้)
+1. ลากไฟล์ MF และ CNTRS (Excel หรือ PDF หลายไฟล์ก็ได้) มาวางพร้อมกันในช่องเดียว เว็บแยกเองว่าไฟล์ไหนเป็น MF ไฟล์ไหนเป็น CNTRS แล้วแสดงตารางทันที (คลิกชื่อกลุ่มเพื่อดู B/L คลิกแถว SOC เพื่อดูเลขตู้)
 2. ช่อง **ชื่อผู้จัดทำ / ตำแหน่ง / เบอร์โทร** แก้เป็นของตัวเอง เบราว์เซอร์จะจำไว้ในเครื่องนั้น
 3. ช่อง **ลายเซ็น** เลือกรูปลายเซ็น (.png พื้นโปร่งใส หรือ .jpg) ครั้งเดียว กด **ลบลายเซ็น** เพื่อเอาออก
 4. ดูตัวอย่างทุกหน้าด้านล่าง แล้วกด **ดาวน์โหลด SUM-EDI.pdf + SUMMARY.pdf**
@@ -44,7 +44,7 @@
 pip install -r requirements.txt
 ```
 
-1. วางไฟล์ MF (หรือ MANIFEST) และ CNTRS (หรือ INWARD) ไว้ในโฟลเดอร์ `input`
+1. วางไฟล์ MF (หรือ MANIFEST) และ CNTRS (หรือ INWARD) ไว้ในโฟลเดอร์ `input` เป็น Excel หรือ PDF ก็ได้ หลายไฟล์ก็ได้ (ใช้เฉพาะไฟล์ที่เป็นเที่ยวเรือเดียวกับ MF)
 2. (ไม่บังคับ) วางรูปลายเซ็นชื่อ `assets/signature.png` (ไฟล์นี้ไม่ถูกส่งขึ้น GitHub)
 3. ดับเบิลคลิก `run-sum-edi.bat` หรือสั่ง
 

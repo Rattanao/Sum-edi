@@ -1,9 +1,9 @@
 ---
 name: sum-edi
 description: >
-  "SUM-EDI": splits one full MF / MANIFEST (CARGO MANIFEST .xls/.xlsx for a whole vessel, the export
+  "SUM-EDI": splits one full MF / MANIFEST (CARGO MANIFEST, Excel or PDF, for a whole vessel, the export
   that has the "1) SHED NO. / 2) country (XX) / 3) CARGO MOVEMENT" column) by DELIVERY, taken from the
-  CNTRS container list (CNTRS.xls / INWARD.xls, "CONTAINER LIST FOR FEEDER": Port Of Delivery + SHED
+  CNTRS container list (Excel or PDF, e.g. CNTRS.xls / INWARD.xls / CNTRS-A0.pdf, "CONTAINER LIST FOR FEEDER": Port Of Delivery + SHED
   NUMBER -> THLCH, THLKR, THBMT, THSCT, THBKK), the transit countries (MYANMAR, LAOS, MALAYSIA, CHINA,
   CAMBODIA), TRANSHIPMENT and EMPTY; only rows that have data are shown. Adds the SOC containers (in
   CNTRS but not in the manifest, other owners such as ORIENT / NS / BEN LINE) under ***SOC*** with a
@@ -48,7 +48,7 @@ DELIVERY row of each B/L, in this order (rows with no containers and no B/L are 
 
 ## Steps
 
-1. Find the files. With a job folder the script looks in `<job>/input`, then `<job>`. The CNTRS list is found by content (`CONTAINER LIST FOR FEEDER`, any file name such as `CNTRS.xls` or `INWARD .xls`; `--cntrs FILE` to give it); the manifest is the other .xls, preferring a name starting with `MF`, then `MANIFEST`.
+1. Find the files. With a job folder the script looks in `<job>/input`, then `<job>`. MF and CNTRS may each be Excel (.xls/.xlsx) or PDF, any file name, and may be split over several files (e.g. MF-LCH.pdf + MF-LAOS.pdf …, CNTRS-A0.pdf + CNTRS-LKR.pdf); they are told apart by content (`CONTAINER LIST FOR FEEDER` = CNTRS, `CARGO MANIFEST` = MF). Only files of the same voyage as the MF (e.g. 2611S) are used. `--cntrs FILE` gives one CNTRS file. PDF text is read line by line; the bigger page-header text is kept apart from container rows it is printed over.
 2. Run:
    ```bash
    python -X utf8 "<skill dir>/scripts/sum_mf.py" "<job folder or MF file>" ["<output folder>"] [--cntrs FILE] [--gate 8|9|text] [--name ... --position ... --tel ...]
@@ -57,7 +57,7 @@ DELIVERY row of each B/L, in this order (rows with no containers and no B/L are 
 3. Report to the user in Thai: vessel and port, the DELIVERY rows (20'/40', B/L, KGS, PKGS), GRAND TOTAL, the SOC lines and their GRAND TOTAL, whether the total = MF GRAND TOTAL, plus any warning the script prints (containers in the manifest but not in CNTRS, containers without a size, no signature, no CNTRS given).
 4. Send the user `SUM-EDI.pdf` and `SUMMARY.pdf`.
 
-If the MF has no SHED NO. / CARGO MOVEMENT column, the script stops: ask the user for the full MF export.
+If the MF has no SHED NO. / country / CARGO MOVEMENT column (e.g. the per-port MF PDFs), the delivery comes from CNTRS and the transit country from the CNTRS REMARK `TRANSIT TO <COUNTRY>` or, failing that, from a B/L text that says TRANSIT and names the country; without CNTRS too, the script stops: ask for the CNTRS or the full MF export. Reference: SAWASDEE VEGA MF-*.pdf + CNTRS.xls gives the same result as the full MF..xls.
 
 ## Web tool
 

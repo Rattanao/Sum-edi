@@ -81,9 +81,9 @@
   <section class="card">
     <div class="inputs">
       <div>
-        <label class="t">ไฟล์ MF / MANIFEST + CNTRS (.xls / .xlsx) <small>ใส่พร้อมกันได้ · CNTRS ไม่ใส่ก็ได้ (ใช้หาตู้ SOC)</small></label>
+        <label class="t">ไฟล์ MF / MANIFEST + CNTRS (Excel หรือ PDF) <small>ใส่พร้อมกันได้ หลายไฟล์ก็ได้ · CNTRS ไม่ใส่ก็ได้ (ใช้หาตู้ SOC)</small></label>
         <div class="drop" id="dropMf"><span id="mfText">ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b></span></div>
-        <input type="file" id="fileMf" accept=".xls,.xlsx" multiple class="hidden">
+        <input type="file" id="fileMf" accept=".xls,.xlsx,.pdf" multiple class="hidden">
       </div>
       <div>
         <label class="t">ลายเซ็น <small>รูป .png/.jpg เก็บไว้ในเบราว์เซอร์นี้</small></label>
@@ -133,7 +133,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29e</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29f</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -147,6 +147,7 @@ const PORTS = { "LAEM CHABANG": "THLCH", "BANGKOK": "THBKK" };   // port of disc
 const ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
                "TRANSHIPMENT", "EMPTY"];
 const TRANSIT = new Set(["MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"]);
+const RE_TRANSIT = new RegExp(`TRANSIT\\s+TO\\s+(${[...TRANSIT].join("|")})\\b`);
 // SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the GATE field
 const PLACE = { THLKR: "LATKRABANG (GATE 2)", THBMT: "BANGKOK MODERN TERMINAL", THSCT: "SIAM CONTAINER TERMINAL", THBKK: "BANGKOK" };
 const GATES = { "8": "(TLC GATE 8)", "9": "(ESCO GATE 2)" };
@@ -174,7 +175,8 @@ const f0 = n => n.toLocaleString("en-US");
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } },
                 set(k, v) { try { localStorage.setItem(k, v); return true; } catch { return false; } },
                 del(k) { try { localStorage.removeItem(k); } catch {} } };
-let mfFile = null, cnFile = null, report = null;
+let files = [], report = null;           // {name, kind: "mf" | "cntrs", voy, bytes, lines (PDF)}
+const mfFiles = () => files.filter(f => f.kind === "mf"), cnFiles = () => files.filter(f => f.kind === "cntrs");
 
 // ---------- read files ----------
 function sheetCells(bytes) {
@@ -185,17 +187,37 @@ function sheetCells(bytes) {
   return { rg, cell };
 }
 
-// what an Excel file is, from its content
-function kindOf(bytes) {
-  const { rg, cell } = sheetCells(bytes);
-  for (let r = rg.s.r; r <= Math.min(rg.e.r, 12); r++)
-    for (let c = 0; c <= 15; c++) {
-      const v = cell(r, c);
-      if (v === "CONTAINER LIST FOR FEEDER") return "cntrs";
-      if (v === "CARGO MANIFEST" || v === "VESSEL & VOYAGE") return "mf";
+// text lines of a PDF, words of one line joined left to right. The bigger page-header text is kept on its
+// own line, so a header printed over a container row does not mix with it (same as scripts/sum_mf.py)
+async function pdfLines(bytes) {
+  const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise, out = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const sp = (await (await pdf.getPage(n)).getTextContent()).items.filter(i => i.str.trim())
+      .map(i => ({ y: -i.transform[5], big: Math.hypot(i.transform[2], i.transform[3]) >= 11, x: i.transform[4], t: i.str.trim() }))
+      .sort((a, b) => a.y - b.y || a.x - b.x);
+    const rows = [];
+    for (const w of sp) {
+      const r = rows.slice(-4).find(r => Math.abs(r.y - w.y) <= 2 && r.big === w.big);
+      if (r) r.w.push(w); else rows.push({ y: w.y, big: w.big, w: [w] });
     }
-  return "other";
+    out.push(...rows.map(r => r.w.sort((a, b) => a.x - b.x).map(w => w.t).join(" ")));
+  }
+  return out;
 }
+
+// what a file is, from its content: "mf" / "cntrs" / "other", and its voyage (e.g. 2611S)
+function kindOf(item) {
+  let head = "";
+  if (item.lines) head = item.lines.slice(0, 15).join(" ");
+  else { const { rg, cell } = sheetCells(item.bytes);
+         for (let r = rg.s.r; r <= Math.min(rg.e.r, 14); r++) for (let c = 0; c <= 30; c++) head += " " + cell(r, c); }
+  const voy = (head.match(/\b(\d{4}[NSEW])\b/) || [, ""])[1];
+  if (head.includes("CONTAINER LIST")) return { kind: "cntrs", voy };
+  if (head.includes("CARGO MANIFEST") || head.includes("VESSEL & VOYAGE")) return { kind: "mf", voy };
+  return { kind: "other", voy };
+}
+
+const newBl = () => ({ pkg: 0, gw: 0, shed: "", country: "", transit: false, tranship: false, cntrs: [], types: [] });
 
 function readMf(bytes) {
   const { rg, cell } = sheetCells(bytes);
@@ -210,7 +232,7 @@ function readMf(bytes) {
       const m = blk.match(/GROSSWEIGHT:\s*([\d,.]+).*?TOTAL PACK:\s*([\d,]+)/);
       if (m) gt = { gw: num(m[1]), pkg: num(m[2]) };
     }
-    if (RE_BL.test(v[0])) { cur = v[0]; bls[cur] = { pkg: 0, gw: 0, shed: "", country: "", transit: false, tranship: false, cntrs: [], types: [] }; }
+    if (RE_BL.test(v[0])) { cur = v[0]; bls[cur] = newBl(); }
     if (!cur) continue;
     if (v[0].startsWith("PortOfDischarge") || line.includes("PORT TOTAL") || line.includes("GRAND TOTAL")) { cur = null; continue; }
     const b = bls[cur]; let m;
@@ -223,10 +245,62 @@ function readMf(bytes) {
     b.cntrs.push(...((v[5] + " " + v[6]).match(RE_CN) || []));   // CONTAINER NO. is in column F or G
     if ((m = v[10].match(/^(\d{2}[A-Z]\d)X\d+/))) b.types.push(m[1]);
   }
-  return { vessel, port: port || "LAEM CHABANG", bls, gt };
+  return { vessel, port, bls, gt };
 }
 
-// CNTRS container list -> {container: {size, consignee, empty, delivery}}
+// MF / MANIFEST printed to PDF: same fields as the Excel export, read from the text lines
+function readMfPdf(lines) {
+  const bls = {}; let cur = null, vessel = "", port = "", gt = null, inGt = false, m;
+  for (const l of lines) {
+    if (!vessel && (m = l.match(/VESSEL & VOYAGE\s+(.*?)\s+NATIONALITY/))) vessel = m[1].trim();
+    if (!port && (m = l.match(/PORT OF DISCHARGE\s+(.*?)\s+NEXT PORT/))) port = m[1].trim();
+    if (l.includes("GRAND TOTAL")) { inGt = true; gt = { gw: 0, pkg: 0 }; }
+    if (inGt) {
+      if ((m = l.match(/GROSSWEIGHT:\s*([\d,.]+)/))) gt.gw = num(m[1]);
+      if ((m = l.match(/TOTAL PACK:\s*([\d,]+)/))) { gt.pkg = num(m[1]); inGt = false; }
+    }
+    if ((m = l.match(/^(HASL[A-Z0-9]{10,14})\b/))) {
+      cur = m[1]; bls[cur] = newBl();
+      if ((m = l.match(/\b(\d[\d,]*)\s+[A-Z]{2}\s*\(/))) bls[cur].pkg = num(m[1]);
+    }
+    if (!cur) continue;
+    if (/^(PortOfDischarge|VESSEL & VOYAGE|.*PORT TOTAL|.*GRAND TOTAL)/.test(l)) { cur = null; continue; }
+    const b = bls[cur];
+    if (!b.gw && (m = l.match(/([\d,]+\.\d+)\s*KGM/))) b.gw = num(m[1]);
+    if ((m = l.match(/SHED NO\.\s*(\d+)/))) b.shed = m[1];
+    if ((m = l.match(/\b2\)[^()]*\(([A-Z]{2})\)/))) b.country = m[1];
+    if (l.includes("CARGO MOVEMENT") && l.includes("TRANSIT")) b.transit = true;
+    if (l.includes("CARGO MOVEMENT") && l.includes("TRANSHIP")) b.tranship = true;
+    for (const x of l.matchAll(/\b\d+\.\s*([A-Z]{4}\d{7})\b/g)) b.cntrs.push(x[1]);
+    for (const x of l.matchAll(/\b(\d{2}[A-Z]\d)X\d+\b/g)) b.types.push(x[1]);
+    (b.text ||= []).push(l);
+  }
+  // MF without the country column: a B/L whose text says TRANSIT and names a transit country goes to that country
+  for (const b of Object.values(bls)) {
+    const t = (b.text || []).join(" "); delete b.text;
+    if (b.country || !t.includes("TRANSIT")) continue;
+    const n = {};
+    for (const c of TRANSIT) if (c !== "VIETNAM") n[c] = (t.match(new RegExp(`\\b${c}\\b`, "g")) || []).length;
+    n.LAOS += (t.match(/\bLAO\b/g) || []).length;
+    const best = Object.keys(n).sort((a, b) => n[b] - n[a])[0];
+    if (n[best]) b.mention = best;
+  }
+  return { vessel, port, bls, gt };
+}
+
+// one or more MF files (Excel or PDF); the MF GRAND TOTAL is summed over the files
+function readMfAll(items) {
+  const all = { vessel: "", port: "", bls: {}, gt: null };
+  for (const it of items) {
+    const r = it.lines ? readMfPdf(it.lines) : readMf(it.bytes);
+    all.vessel ||= r.vessel; all.port ||= r.port; Object.assign(all.bls, r.bls);
+    if (r.gt) all.gt = { gw: Math.round(((all.gt?.gw || 0) + r.gt.gw) * 1000) / 1000, pkg: (all.gt?.pkg || 0) + r.gt.pkg };
+  }
+  all.port ||= "LAEM CHABANG";
+  return all;
+}
+
+// CNTRS container list -> {container: {size, consignee, empty, delivery, transit (country in REMARK)}}
 function readCntrs(bytes, discharge) {
   const { rg, cell } = sheetCells(bytes);
   const out = {}; let deliv = discharge, shed = "";
@@ -242,8 +316,29 @@ function readCntrs(bytes, discharge) {
     const size = m ? m[1] : (/\b2\d[A-Z]\d\b/.test(t) ? "20" : "40");
     const status = v.slice(15, 23).find(x => /^\d=/.test(x)) || "";
     out[c0] = { size: size === "20" ? 20 : 40, consignee: v[9], empty: /^4=|MTY/.test(status),
-                delivery: deliv === discharge ? (SHED_DELIVERY[shed] || deliv) : deliv };
+                delivery: deliv === discharge ? (SHED_DELIVERY[shed] || deliv) : deliv,
+                transit: (v.slice(20).join(" ").match(RE_TRANSIT) || [, ""])[1] };
   }
+  return out;
+}
+
+// CNTRS container list printed to PDF
+function readCntrsPdf(lines, discharge) {
+  const out = {}; let deliv = discharge, shed = "", m;
+  for (const l of lines) {
+    if ((m = l.match(/Port Of Delivery\s+([A-Z]{5})/))) deliv = m[1];
+    if ((m = l.match(/^SHED NUMBER:\s*(\d+)/))) shed = m[1].padStart(4, "0");
+    if (!(m = l.match(/^([A-Z]{4}\d{7})\s+\d+\s+\S+\s+(\w{4})\s*\((\d\d)'\)\s*(.*?)\s*[\d,]+\.\d+\s*KGM\s*(\S*)/)) || out[m[1]]) continue;
+    out[m[1]] = { size: m[3] === "20" ? 20 : 40, consignee: m[4], empty: m[5].startsWith("4=") || m[5].includes("MTY"),
+                  delivery: deliv === discharge ? (SHED_DELIVERY[shed] || deliv) : deliv,
+                  transit: (l.match(RE_TRANSIT) || [, ""])[1] };
+  }
+  return out;
+}
+
+function readCntrsAll(items, discharge) {
+  const out = {};
+  for (const it of items) for (const [c, x] of Object.entries(it.lines ? readCntrsPdf(it.lines, discharge) : readCntrs(it.bytes, discharge))) out[c] ||= x;
   return out;
 }
 
@@ -258,6 +353,10 @@ function summarize(bls, main, cn) {
   const groupOf = b => {
     if (b.transit && b.country && b.country !== "TH") return COUNTRY[b.country] || b.country;
     if (b.tranship) return "TRANSHIPMENT";
+    if (!b.country) {                       // MF without the country column: "TRANSIT TO <COUNTRY>" in the CNTRS REMARK
+      const t = b.cntrs.map(c => cn[c]?.transit).find(Boolean);
+      if (t || b.mention) return t || b.mention;
+    }
     const c = b.cntrs.find(c => cn[c]);
     return c ? cn[c].delivery : (SHED_DELIVERY[b.shed] || main);
   };
@@ -444,13 +543,14 @@ const staffNow = () => ({ name: $("stName").value.trim(), position: $("stPos").v
 
 async function run() {
   $("msg").textContent = "";
-  if (!mfFile) { report = null; $("result").classList.add("hidden"); update(); return; }
+  if (!mfFiles().length) { report = null; $("result").classList.add("hidden"); update(); return; }
   try {
-    const { vessel, port, bls, gt } = readMf(mfFile.bytes);
+    const { vessel, port, bls, gt } = readMfAll(mfFiles());
     if (!Object.keys(bls).length) throw new Error("ไม่พบ B/L (HASL...) ในไฟล์ MF");
-    if (!Object.values(bls).some(b => b.shed)) throw new Error("ไฟล์ MF ไม่มีช่อง 1) SHED NO. / 2) ประเทศ / 3) CARGO MOVEMENT — ใช้ MF ที่ export แบบมีข้อมูลนี้");
+    if (!Object.values(bls).some(b => b.shed) && !cnFiles().length)
+      throw new Error("ไฟล์ MF ไม่มีช่อง 1) SHED NO. / 2) ประเทศ / 3) CARGO MOVEMENT — ใส่ไฟล์ CNTRS ด้วย หรือใช้ MF ที่ export แบบมีข้อมูลนี้");
     const main = PORTS[port] || "TH" + port.slice(0, 3);
-    const cn = cnFile ? readCntrs(cnFile.bytes, main) : {};
+    const cn = readCntrsAll(cnFiles(), main);
     let { summ, soc, nosize, notInCntrs } = summarize(bls, main, cn);
     summ = summ.filter(x => x.cntrs || x.bls);
     const T = { bls: summ.reduce((s, x) => s + x.bls, 0), cntrs: summ.reduce((s, x) => s + x.cntrs, 0),
@@ -472,8 +572,8 @@ async function render() {
   const ok = gt && Math.abs(gt.gw - T.gw) < .0005 && gt.pkg === T.pkg;
   const grand = T.cntrs + soc.reduce((s, x) => s + x.cntrs.length, 0);
   $("info").innerHTML =
-    `<div class="k">MF</div><div>${escapeHtml(mfFile.name)}</div>` +
-    `<div class="k">CNTRS</div><div>${cnFile ? escapeHtml(cnFile.name) : "ไม่ได้ใส่ (ไม่ตรวจตู้ SOC)"}</div>` +
+    `<div class="k">MF</div><div>${mfFiles().map(f => escapeHtml(f.name)).join(", ")}</div>` +
+    `<div class="k">CNTRS</div><div>${cnFiles().length ? cnFiles().map(f => escapeHtml(f.name)).join(", ") : "ไม่ได้ใส่ (ไม่ตรวจตู้ SOC)"}</div>` +
     `<div class="k">VESSEL</div><div><b>${escapeHtml(vessel)}</b></div>` +
     `<div class="k">PORT</div><div><b>${escapeHtml(port)}</b></div>` +
     `<div class="k">GRAND TOTAL ของ MF</div><div class="${ok ? "ok" : "ng"}">${gt ? `${f3(gt.gw)} / ${f0(gt.pkg)} ${ok ? "✓ ตรง" : "✗ ไม่ตรงกับผลรวม"}` : "ไม่พบ"}</div>` +
@@ -517,21 +617,26 @@ function save(bytes, name) {
 }
 
 // ---------- files ----------
-async function takeFiles(files) {
+// files are added up (MF and CNTRS may be split over several Excel / PDF files); a file of another voyage than
+// the newest MF is dropped, so a new vessel starts clean
+async function takeFiles(list) {
   const bad = [];
-  for (const f of files) {
+  for (const f of list) {
     const item = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
-    let kind = "other";
-    try { kind = kindOf(item.bytes); } catch {}
-    if (kind === "mf") mfFile = item;
-    else if (kind === "cntrs") cnFile = item;
-    else bad.push(`"${f.name}" ไม่ใช่ไฟล์ MF (CARGO MANIFEST) หรือ CNTRS (CONTAINER LIST)`);
+    try {
+      if (/\.pdf$/i.test(f.name)) item.lines = await pdfLines(item.bytes);
+      Object.assign(item, kindOf(item));
+    } catch { item.kind = "other"; }
+    if (item.kind === "other") { bad.push(`"${f.name}" ไม่ใช่ไฟล์ MF (CARGO MANIFEST) หรือ CNTRS (CONTAINER LIST)`); continue; }
+    files = files.filter(x => x.name !== item.name).concat(item);
+    if (item.kind === "mf" && item.voy) files = files.filter(x => !x.voy || x.voy === item.voy);
   }
-  $("mfText").innerHTML = [mfFile && `MF: <b>${escapeHtml(mfFile.name)}</b>`, cnFile && `CNTRS: <b>${escapeHtml(cnFile.name)}</b>`]
-    .filter(Boolean).join(" · ") + (mfFile || cnFile ? " (คลิกเพื่อเพิ่ม/เปลี่ยนไฟล์)" : "ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b>");
+  const names = fs => fs.map(f => `<b>${escapeHtml(f.name)}</b>`).join(", ");
+  $("mfText").innerHTML = [mfFiles().length && `MF: ${names(mfFiles())}`, cnFiles().length && `CNTRS: ${names(cnFiles())}`]
+    .filter(Boolean).join(" · ") + (files.length ? " (คลิกเพื่อเพิ่มไฟล์ · ลบไฟล์ = เริ่มใหม่)" : "ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b>");
   await run();
   if (bad.length) $("msg").textContent = [bad.join("\n"), $("msg").textContent].filter(Boolean).join("\n");
-  if (!mfFile && cnFile) $("msg").textContent = [$("msg").textContent, "ยังไม่มีไฟล์ MF"].filter(Boolean).join("\n");
+  if (!mfFiles().length && cnFiles().length) $("msg").textContent = [$("msg").textContent, "ยังไม่มีไฟล์ MF"].filter(Boolean).join("\n");
 }
 
 // ---------- signature ----------
@@ -564,9 +669,9 @@ $("gate").oninput = () => { showGate(); clearTimeout(staffTimer); staffTimer = s
 showGate();
 
 // ---------- events ----------
-function update() { $("clear").disabled = !(mfFile || cnFile || report); }
+function update() { $("clear").disabled = !(files.length || report); }
 function clearAll() {
-  mfFile = cnFile = report = null; $("fileMf").value = ""; $("msg").textContent = "";
+  files = []; report = null; $("fileMf").value = ""; $("msg").textContent = "";
   $("mfText").innerHTML = "ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b>";
   $("result").classList.add("hidden"); $("preview").innerHTML = ""; update();
 }
