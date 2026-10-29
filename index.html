@@ -43,7 +43,8 @@
   button:disabled { opacity: .4; cursor: not-allowed; }
   button.ghost { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
   button.small { padding: 6px 12px; font-size: 14px; }
-  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btns { display: grid; grid-template-columns: auto auto; gap: 8px; align-items: stretch; }
+  .btns .wide { grid-column: 1 / -1; }
   .rules { font-size: 14px; color: var(--muted); margin: 12px 0 0; line-height: 1.6; }
   .rules code { background: var(--navy-soft); color: var(--navy); padding: 1px 6px; border-radius: 4px; }
   .msg { color: var(--red); font-weight: 600; margin-top: 10px; white-space: pre-line; }
@@ -53,9 +54,7 @@
   .info .ok { color: var(--green); font-weight: 700; }
   .info .ng { color: var(--red); font-weight: 700; }
   .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
-  .toolbar.top { margin: 0 0 16px; }
-  .toolbar.top button { padding: 12px 40px; }
-  .hint { color: #555; font-size: 14px; }
+  .hint { color: #555; font-size: 14px; margin-top: 8px; text-align: right; }
   .hint.stale { color: #b00; font-weight: 600; }
   select { font: inherit; padding: 9px 10px; border: 1px solid #c7ccd6; border-radius: 8px; width: 100%; background: #fff; }
   .tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
@@ -84,10 +83,6 @@
 
 <main class="wrap">
   <section class="card">
-    <div class="toolbar top">
-      <button id="process" disabled>Process</button>
-      <span id="state" class="hint">ใส่ไฟล์ MF (+ CNTRS) แล้วกด Process</span>
-    </div>
     <div class="inputs">
       <div>
         <label class="t">ไฟล์ MF / MANIFEST + CNTRS (Excel หรือ PDF) <small>ใส่พร้อมกันได้ หลายไฟล์ก็ได้ · CNTRS ไม่ใส่ก็ได้ (ใช้หาตู้ SOC)</small></label>
@@ -100,10 +95,12 @@
         <input type="file" id="fileSig" accept="image/png,image/jpeg" class="hidden">
       </div>
       <div class="btns">
+        <button id="process" class="wide" disabled>Process</button>
         <button id="clearSig" class="ghost small" disabled>ลบลายเซ็น</button>
         <button id="clear" class="ghost" disabled>ลบไฟล์</button>
       </div>
     </div>
+    <div id="state" class="hint">ใส่ไฟล์ MF (+ CNTRS) แล้วกด Process</div>
     <div class="staff">
       <div><label class="t" for="stName">ชื่อผู้จัดทำ <small>ท้าย SUM-EDI · ทุกคนแก้เป็นของตัวเองได้</small></label><input type="text" id="stName" autocomplete="off"></div>
       <div><label class="t" for="stPos">ตำแหน่ง</label><input type="text" id="stPos" autocomplete="off"></div>
@@ -140,7 +137,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29j</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29k</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -498,7 +495,7 @@ async function buildSumEdi(vessel, port, summ, T, soc, staff) {
     if (x.n20) p.text(208, y, `${x.n20}   X 20'`, 8.5, { ...B, right: true });
     if (x.n40) p.text(268, y, `${x.n40}   X 40'`, 8.5, { ...B, right: true });
     if (x.bls) {
-      p.text(X[3] - 6, y, String(x.bls), 8.5, { ...B, right: true });
+      center(X[2], X[3], y, String(x.bls));
       p.text(X[4] - 6, y, f3(x.gw), 8.5, { ...B, right: true });
       p.text(X[5] - 6, y, f0(x.pkg), 8.5, { ...B, right: true });
     }

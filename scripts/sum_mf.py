@@ -400,7 +400,7 @@ def write_sum_edi(path, vessel, port, summ, T, soc, staff):
         if x["n20"]: text(pg, 208, y, f"{x['n20']}   X 20'", 8.5, right=True, font="tb")
         if x["n40"]: text(pg, 268, y, f"{x['n40']}   X 40'", 8.5, right=True, font="tb")
         if x["bls"]:
-            text(pg, X[3] - 6, y, f"{x['bls']}", 8.5, right=True, font="tb")
+            ctext(X[2], X[3], y, f"{x['bls']}")
             text(pg, X[4] - 6, y, f"{x['gw']:,.3f}", 8.5, right=True, font="tb")
             text(pg, X[5] - 6, y, f"{x['pkg']:,}", 8.5, right=True, font="tb")
         y += rh
