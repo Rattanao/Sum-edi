@@ -127,7 +127,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29c</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29d</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -141,6 +141,7 @@ const PORTS = { "LAEM CHABANG": "THLCH", "BANGKOK": "THBKK" };   // port of disc
 const ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
                "TRANSHIPMENT", "EMPTY"];
 const TRANSIT = new Set(["MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"]);
+const PLACE = { THLKR: "LKB (ESCO GATE 2)" };   // SUMMARY page "<PORT> / <place>"; other deliveries use their code
 // SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 const SOC_STOP = new Set(["AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
   "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"]);
@@ -337,14 +338,13 @@ async function buildSummary(vessel, port, main, summ) {
     p.line(75, 404, 690, 404, .6, true);
     p.text(75, 424, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 7.5);
   };
-  // one page for the port (every delivery in Thailand except THLKR), one per transit country, one for THLKR
-  const S = Object.fromEntries(summ.filter(x => x.bls).map(x => [x.g, x]));
-  const portG = Object.keys(S).filter(g => !TRANSIT.has(g) && g !== "THLKR");
-  if (portG.length) page1(AGENT1, port, "", Math.round(portG.reduce((s, g) => s + S[g].gw, 0) * 1000) / 1000,
-                          portG.reduce((s, g) => s + S[g].pkg, 0), true);
-  for (const g of Object.keys(S).filter(g => TRANSIT.has(g)))
-    page1(AGENT2, "*CARGO INTRANSIT TO", `${g}${g === "LAOS" ? "  " : ""}   P.D.R.  VIA  ${port}`, S[g].gw, S[g].pkg, false);
-  if (S.THLKR) page1(AGENT1, `${port} /`, "LKB (ESCO GATE 2)", S.THLKR.gw, S.THLKR.pkg, true);
+  // one page per DELIVERY row with B/L, in the SUM-EDI order
+  for (const x of summ.filter(x => x.bls)) {
+    const g = x.g;
+    if (g === main) page1(AGENT1, port, "", x.gw, x.pkg, true);
+    else if (TRANSIT.has(g)) page1(AGENT2, "*CARGO INTRANSIT TO", `${g}${g === "LAOS" ? "  " : ""}   P.D.R.  VIA  ${port}`, x.gw, x.pkg, false);
+    else page1(AGENT1, `${port} /`, PLACE[g] || g, x.gw, x.pkg, true);
+  }
   return doc.save();
 }
 
@@ -357,12 +357,11 @@ async function buildSumEdi(vessel, port, summ, T, soc, staff) {
     .catch(() => { throw new Error("โหลดหัวจดหมาย assets/letterhead.jpg ไม่ได้ — เปิดหน้านี้ผ่าน https://rattanao.github.io/Sum-edi/"); });
   p.image(await doc.embedJpg(lh), 45, 52, 505, 102);
   const A = { font: fonts.a };
-  [["AGENT  NAME  :", AGENT1], ["TAX ID:", "0993000456955"], ["VESSEL  :", vessel], ["PORT OF DISCHARGE :", port]].forEach(([k, v], i) => {
+  [["AGENT  NAME  :", AGENT1], ["TAX ID:", "0993000456955"], ["VESSEL  :", vessel], ["DISCHARGE :", port]].forEach(([k, v], i) => {
     const y = 194 + i * 21;
     p.text(54, y, k, 9.5, A);
-    const x = i < 3 ? 185 : 54 + fonts.a.widthOfTextAtSize(k, 9.5) + 3;
-    p.text(x, y, v, 9.5, { ...A, max: 541 - x });
-    p.line(i < 3 ? 185 : 54, y + 5, 541, y + 5, .5);
+    p.text(185, y, v, 9.5, { ...A, max: 541 - 185 });
+    p.line(185, y + 5, 541, y + 5, .5);
   });
   // only the DELIVERY rows that have containers, then one blank row and GRAND TOTAL
   const X = [51, 147, 276, 347, 445, 541], top = 279, hh = 43, rh = 20;

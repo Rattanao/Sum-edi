@@ -26,6 +26,7 @@ PORTS = {"LAEM CHABANG": "THLCH", "BANGKOK": "THBKK"}  # port of discharge -> de
 ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
          "TRANSHIPMENT", "EMPTY"]
 TRANSIT = {"MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"}
+PLACE = {"THLKR": "LKB (ESCO GATE 2)"}  # SUMMARY page "<PORT> / <place>"; other deliveries use their code
 # SOC owner = first word of the CONSIGNEE: "ORIENT OVERSEAS CONTAINER LINE" -> "ORIENT", "NS INTERNATIONAL ..." -> "NS"
 SOC_STOP = {"AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "THAILAND", "CO.", "CO.,", "CO.,LTD.", "CO.,LTD",
             "LTD.", "LTD", "LIMITED", "SHIPPING", "LOGISTICS", "CORPORATION", "CORP.", "COMPANY"}
@@ -223,17 +224,15 @@ def summary_page(doc, vessel_name, port, agent, left, place, gw, pkg, double=Fal
 
 
 def write_summary(path, vessel_name, port, main, summ):
-    """one page for the port (every delivery in Thailand except THLKR), one per transit country, one for THLKR"""
-    S = {x["g"]: x for x in summ if x["bls"]}
-    port_g = [g for g in S if g not in TRANSIT and g != "THLKR"]
+    """one page per DELIVERY row with B/L, in the SUM-EDI order"""
     doc = pymupdf.open()
-    if port_g:
-        summary_page(doc, vessel_name, port, AGENT1, port, "", round(sum(S[g]["gw"] for g in port_g), 3),
-                     sum(S[g]["pkg"] for g in port_g), double=True)
-    for g in [g for g in S if g in TRANSIT]:
-        summary_page(doc, vessel_name, port, AGENT2, "*CARGO INTRANSIT TO",
-                     f"{g}{'  ' if g == 'LAOS' else ''}   P.D.R.  VIA  {port}", S[g]["gw"], S[g]["pkg"])
-    if "THLKR" in S: summary_page(doc, vessel_name, port, AGENT1, f"{port} /", "LKB (ESCO GATE 2)", S["THLKR"]["gw"], S["THLKR"]["pkg"], double=True)
+    for x in [x for x in summ if x["bls"]]:
+        g = x["g"]
+        if g == main: summary_page(doc, vessel_name, port, AGENT1, port, "", x["gw"], x["pkg"], double=True)
+        elif g in TRANSIT:
+            summary_page(doc, vessel_name, port, AGENT2, "*CARGO INTRANSIT TO",
+                         f"{g}{'  ' if g == 'LAOS' else ''}   P.D.R.  VIA  {port}", x["gw"], x["pkg"])
+        else: summary_page(doc, vessel_name, port, AGENT1, f"{port} /", PLACE.get(g, g), x["gw"], x["pkg"], double=True)
     doc.subset_fonts(); doc.save(path, garbage=4, deflate=True)
 
 
@@ -241,12 +240,11 @@ def write_sum_edi(path, vessel, port, summ, T, soc, staff):
     doc = pymupdf.open(); pg = doc.new_page(width=595, height=842)
     pg.insert_image(pymupdf.Rect(45, 52, 45 + 505, 52 + 102), filename=LETTERHEAD)
     for i, (k, v) in enumerate((("AGENT  NAME  :", AGENT1), ("TAX ID:", "0993000456955"), ("VESSEL  :", vessel),
-                                ("PORT OF DISCHARGE :", port))):
+                                ("DISCHARGE :", port))):
         y = 194 + i * 21
         text(pg, 54, y, k, 9.5, font="ab")
-        x = 185 if i < 3 else 54 + pymupdf.Font(fontfile=FONTFILES["ab"]).text_length(k, 9.5) + 3
-        text(pg, x, y, v, 9.5, font="ab", maxw=541 - x)
-        pg.draw_line((185 if i < 3 else 54, y + 5), (541, y + 5), width=0.5)
+        text(pg, 185, y, v, 9.5, font="ab", maxw=541 - 185)
+        pg.draw_line((185, y + 5), (541, y + 5), width=0.5)
     # only the DELIVERY rows that have containers, then one blank row and GRAND TOTAL
     X = [51, 147, 276, 347, 445, 541]
     top, hh, rh = 279, 43, 20
