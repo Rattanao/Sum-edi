@@ -26,6 +26,7 @@ SHED_DELIVERY = {"0332": "THLKR", "0110": "THBMT", "0302": "THSCT", "0122": "THB
 PORTS = {"LAEM CHABANG": "THLCH", "BANGKOK": "THBKK"}  # port of discharge -> delivery code
 ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
          "TRANSHIPMENT", "EMPTY"]
+label = lambda g: re.sub(r"^TH(?=[A-Z]{3}$)", "", g)  # DELIVERY shown without TH: THLCH -> LCH
 TRANSIT = {"MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"}
 TRANSITRE = re.compile(r"TRANSIT\s+TO\s+(" + "|".join(sorted(TRANSIT)) + r")\b")
 # SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the gate (--gate)
@@ -396,7 +397,7 @@ def write_sum_edi(path, vessel, port, summ, T, soc, staff):
     ctext(X[4], X[5], top + 35, "TOTAL PKGS", 9.5)
     y = body + 14
     for x in summ:
-        text(pg, X[0] + 3, y, x["g"], 9, font="tb", maxw=X[1] - X[0] - 6)
+        text(pg, X[0] + 3, y, label(x["g"]), 9, font="tb", maxw=X[1] - X[0] - 6)
         if x["n20"]: text(pg, 208, y, f"{x['n20']}   X 20'", 8.5, right=True, font="tb")
         if x["n40"]: text(pg, 268, y, f"{x['n40']}   X 40'", 8.5, right=True, font="tb")
         if x["bls"]:
@@ -467,7 +468,7 @@ def main():
 
     print(f"MF: {', '.join(mf)}\nCNTRS: {', '.join(cntrs) or '- (no SOC check)'}\nVESSEL: {vessel}   PORT: {port}")
     for x in summ:
-        print(f"{x['g']:13} {x['n20']:>3}x20' {x['n40']:>3}x40' BL {x['bls']:>3} {x['gw']:>14,.3f} KGS {x['pkg']:>7,} PKGS")
+        print(f"{label(x['g']):13} {x['n20']:>3}x20' {x['n40']:>3}x40' BL {x['bls']:>3} {x['gw']:>14,.3f} KGS {x['pkg']:>7,} PKGS")
         if x.get("extra"): print(f"              + HEUNG A not in MF: {', '.join(x['extra'])}")
     print(f"GRAND TOTAL   {T['cntrs']} CNTRS  BL {T['bls']}  {T['gw']:,.3f}  {T['pkg']:,}")
     if soc: print("***SOC***")

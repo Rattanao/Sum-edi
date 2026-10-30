@@ -137,7 +137,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-29l</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-30a</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -150,6 +150,8 @@ const SHED_DELIVERY = { "0332": "THLKR", "0110": "THBMT", "0302": "THSCT", "0122
 const PORTS = { "LAEM CHABANG": "THLCH", "BANGKOK": "THBKK" };   // port of discharge -> delivery code
 const ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
                "TRANSHIPMENT", "EMPTY"];
+// DELIVERY shown without the country prefix: THLCH -> LCH, THLKR -> LKR (TRANSHIPMENT, MYANMAR … unchanged)
+const label = g => g.replace(/^TH(?=[A-Z]{3}$)/, "");
 const TRANSIT = new Set(["MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"]);
 const RE_TRANSIT = new RegExp(`TRANSIT\\s+TO\\s+(${[...TRANSIT].join("|")})\\b`);
 // SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the GATE field
@@ -491,7 +493,7 @@ async function buildSumEdi(vessel, port, summ, T, soc, staff) {
   center(X[4], X[5], top + 35, "TOTAL PKGS", 9.5);
   let y = body + 14;
   for (const x of summ) {
-    p.text(X[0] + 3, y, x.g, 9, { ...B, max: X[1] - X[0] - 6 });
+    p.text(X[0] + 3, y, label(x.g), 9, { ...B, max: X[1] - X[0] - 6 });
     if (x.n20) p.text(208, y, `${x.n20}   X 20'`, 8.5, { ...B, right: true });
     if (x.n40) p.text(268, y, `${x.n40}   X 40'`, 8.5, { ...B, right: true });
     if (x.bls) {
@@ -577,7 +579,7 @@ async function render() {
     `<div class="k">GRAND TOTAL ของ MF</div><div class="${ok ? "ok" : "ng"}">${gt ? `${f3(gt.gw)} / ${f0(gt.pkg)} ${ok ? "✓ ตรง" : "✗ ไม่ตรงกับผลรวม"}` : "ไม่พบ"}</div>` +
     `<div class="k">ลายเซ็น</div><div class="${store.get(SIG_KEY) ? "ok" : "ng"}">${store.get(SIG_KEY) ? "ใส่แล้ว" : "ไม่มี"}</div>`;
   $("tbody").innerHTML = summ.map((x, i) =>
-    `<tr class="g" data-i="${i}" title="คลิกเพื่อดู B/L"><td class="b">${escapeHtml(x.g)}</td><td>${x.n20 || ""}</td><td>${x.n40 || ""}</td>` +
+    `<tr class="g" data-i="${i}" title="คลิกเพื่อดู B/L"><td class="b">${escapeHtml(label(x.g))}</td><td>${x.n20 || ""}</td><td>${x.n40 || ""}</td>` +
     (x.empty ? `<td>${x.cntrs}</td><td></td><td></td><td></td></tr>`
              : `<td>${x.cntrs}</td><td>${x.bls}</td><td class="n">${f3(x.gw)}</td><td class="n">${f0(x.pkg)}</td></tr>`) +
     `<tr class="bls hidden" id="bl${i}"><td colspan="7">${x.nos.join(", ")}${x.extra ? `<br>HEUNG A ไม่มีใน MF: ${x.extra.join(", ")}` : ""}</td></tr>`).join("") +
