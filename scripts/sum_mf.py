@@ -345,7 +345,7 @@ def summary_page(doc, vessel_name, port, agent, left, place, gw, pkg, double=Fal
     text(pg, 433, y + 38, "TOTAL", 7.5)
     pg.draw_line((470, y + 26), (738, y + 26), width=0.7)
     pg.draw_line((470, y + 45), (738, y + 45), width=0.7)
-    if double: pg.draw_line((470, y + 47), (738, y + 47), width=0.7)
+    pg.draw_line((470, y + 47), (738, y + 47), width=0.7)          # double line under TOTAL on every page
     if os.path.exists(SIGNATURE): pg.insert_image(pymupdf.Rect(88, 358, 88 + 27, 358 + 44.5), filename=SIGNATURE)
     pg.draw_line((75, 404), (690, 404), width=0.6, dashes="[1 1.5] 0")
     text(pg, 75, 424, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 7.5)

@@ -152,7 +152,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-30c</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-30d</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -464,7 +464,7 @@ async function buildSummary(vessel, port, main, summ) {
     }
     p.text(433, y + 38, "TOTAL", 7.5);
     p.line(470, y + 26, 738, y + 26); p.line(470, y + 45, 738, y + 45);
-    if (double) p.line(470, y + 47, 738, y + 47);
+    p.line(470, y + 47, 738, y + 47);                       // double line under TOTAL on every page
     if (sig) { const h = 44.5, w = Math.min(60, h * sig.width / sig.height); p.image(sig, 88, 358, w, h); }
     p.line(75, 404, 690, 404, .6, true);
     p.text(75, 424, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 7.5);
