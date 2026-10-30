@@ -137,7 +137,7 @@
     <div class="preview" id="preview"></div>
   </section>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-30a</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-30b</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -151,7 +151,8 @@ const PORTS = { "LAEM CHABANG": "THLCH", "BANGKOK": "THBKK" };   // port of disc
 const ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
                "TRANSHIPMENT", "EMPTY"];
 // DELIVERY shown without the country prefix: THLCH -> LCH, THLKR -> LKR (TRANSHIPMENT, MYANMAR … unchanged)
-const label = g => g.replace(/^TH(?=[A-Z]{3}$)/, "");
+const LABEL = { THBKK: "BKK (PAT)" };
+const label = g => LABEL[g] || g.replace(/^TH(?=[A-Z]{3}$)/, "");
 const TRANSIT = new Set(["MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"]);
 const RE_TRANSIT = new RegExp(`TRANSIT\\s+TO\\s+(${[...TRANSIT].join("|")})\\b`);
 // SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the GATE field

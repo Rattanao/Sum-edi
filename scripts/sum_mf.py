@@ -26,7 +26,8 @@ SHED_DELIVERY = {"0332": "THLKR", "0110": "THBMT", "0302": "THSCT", "0122": "THB
 PORTS = {"LAEM CHABANG": "THLCH", "BANGKOK": "THBKK"}  # port of discharge -> delivery code
 ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
          "TRANSHIPMENT", "EMPTY"]
-label = lambda g: re.sub(r"^TH(?=[A-Z]{3}$)", "", g)  # DELIVERY shown without TH: THLCH -> LCH
+LABEL = {"THBKK": "BKK (PAT)"}  # DELIVERY shown in SUM-EDI; others without TH: THLCH -> LCH
+label = lambda g: LABEL.get(g) or re.sub(r"^TH(?=[A-Z]{3}$)", "", g)
 TRANSIT = {"MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA", "VIETNAM"}
 TRANSITRE = re.compile(r"TRANSIT\s+TO\s+(" + "|".join(sorted(TRANSIT)) + r")\b")
 # SUMMARY page "<PORT> / <place>"; THLKR = LATKRABANG + the gate (--gate)
