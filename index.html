@@ -72,7 +72,16 @@
   .preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 6px; }
   .preview figure { margin: 0; text-align: center; }
   .preview canvas { width: 100%; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
-  .preview figcaption { font-size: 13px; color: var(--muted); }
+  .preview figcaption { font-size: 13px; color: var(--muted); display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 4px; }
+  .preview canvas { cursor: zoom-in; }
+  .viewer { position: fixed; inset: 0; background: rgba(20, 28, 45, .94); z-index: 50; display: flex; flex-direction: column; }
+  .viewer.hidden { display: none; }
+  .viewer .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; color: #fff; font-weight: 600; }
+  .viewer .bar span { flex: 1 1 200px; }
+  .viewer .bar button { padding: 6px 14px; font-size: 14px; white-space: nowrap; }
+  .viewer .page { flex: 1; overflow: auto; text-align: center; padding: 0 16px 16px; }
+  .viewer canvas { background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,.4); max-width: none; }
+  .viewer.fit canvas { max-width: 100%; height: auto; }
   .hidden { display: none; }
   footer { text-align: center; color: var(--muted); font-size: 13px; padding-bottom: 24px; }
   footer a { color: var(--navy); }
@@ -136,8 +145,14 @@
     </div>
     <div class="preview" id="preview"></div>
   </section>
+  <div class="viewer fit hidden" id="viewer">
+    <div class="bar"><span id="vTitle"></span>
+      <button id="vPrev" class="ghost">‹ ก่อนหน้า</button><button id="vNext" class="ghost">ถัดไป ›</button>
+      <button id="vZoom" class="ghost">ขยาย 100%</button><button id="vClose">ปิด ✕</button></div>
+    <div class="page" id="vPage"></div>
+  </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-30b</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-30c</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -596,14 +611,17 @@ async function render() {
   if (nosize.length) warn.push(`ตู้ที่ไม่ทราบขนาด (ไม่ได้นับใน 20'/40'): ${nosize.join(", ")}`);
   $("msg").textContent = warn.join("\n");
   $("result").classList.remove("hidden");
-  const box = $("preview"); box.innerHTML = "";
+  const box = $("preview"); box.innerHTML = ""; pages = [];
   for (const [label, bytes] of [["SUM-EDI", report.edi], ["SUMMARY", report.sum]]) {
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
     for (let n = 1; n <= pdf.numPages; n++) {
       const page = await pdf.getPage(n), vp = page.getViewport({ scale: 1.2 });
       const fig = document.createElement("figure"), cv = document.createElement("canvas");
       cv.width = vp.width; cv.height = vp.height;
-      fig.append(cv); fig.insertAdjacentHTML("beforeend", `<figcaption>${label} หน้า ${n}</figcaption>`);
+      const i = pages.length; pages.push({ label, n, page });
+      fig.append(cv); fig.insertAdjacentHTML("beforeend", `<figcaption>${label} หน้า ${n} <button class="ghost small" data-v="${i}">ดูภาพเต็ม</button></figcaption>`);
+      cv.onclick = () => openViewer(i);
+      fig.querySelector("button").onclick = () => openViewer(i);
       box.append(fig);
       await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
     }
@@ -616,6 +634,31 @@ function save(bytes, name) {
   a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
+
+// ---------- full-size preview ----------
+let pages = [], vAt = 0;
+async function openViewer(i) {
+  vAt = (i + pages.length) % pages.length;
+  const { label, n, page } = pages[vAt];
+  $("vTitle").textContent = `${label} หน้า ${n}  (${vAt + 1}/${pages.length})`;
+  const vp = page.getViewport({ scale: 3 });                     // sharp enough to read every figure
+  const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
+  cv.style.width = `${Math.round(page.getViewport({ scale: 1.6 }).width)}px`;   // "100%" size
+  $("vPage").replaceChildren(cv); $("viewer").classList.remove("hidden");
+  await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+}
+const closeViewer = () => $("viewer").classList.add("hidden");
+$("vClose").onclick = closeViewer;
+$("vPrev").onclick = () => openViewer(vAt - 1);
+$("vNext").onclick = () => openViewer(vAt + 1);
+$("vZoom").onclick = () => { const v = $("viewer"); v.classList.toggle("fit"); $("vZoom").textContent = v.classList.contains("fit") ? "ขยาย 100%" : "พอดีจอ"; };
+$("viewer").onclick = e => { if (e.target.id === "vPage") closeViewer(); };
+document.addEventListener("keydown", e => {
+  if ($("viewer").classList.contains("hidden")) return;
+  if (e.key === "Escape") closeViewer();
+  if (e.key === "ArrowLeft") openViewer(vAt - 1);
+  if (e.key === "ArrowRight") openViewer(vAt + 1);
+});
 
 // ---------- files ----------
 // files are added up (MF and CNTRS may be split over several Excel / PDF files); a file of another voyage than
