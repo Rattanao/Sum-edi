@@ -83,6 +83,14 @@
   .viewer canvas { background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,.4); max-width: none; }
   .viewer.fit canvas { max-width: 100%; height: auto; }
   .hidden { display: none; }
+  .checks { margin: 14px 0; padding: 12px 14px; border-radius: 10px; border: 1px solid #f0b4b4; background: #fff5f5; }
+  .checks.pass { border-color: #b7dfc0; background: #f3fbf5; color: #1d6b35; font-weight: 600; }
+  .checks h3 { margin: 0 0 8px; font-size: 15px; color: #b00; }
+  .checks ul { margin: 0; padding-left: 18px; }
+  .checks li { margin: 3px 0; }
+  .checks .lv { display: inline-block; min-width: 38px; padding: 0 6px; margin-right: 6px; border-radius: 6px; color: #fff; font-size: 12px; text-align: center; }
+  .checks .lv.ng { background: #c62828; } .checks .lv.ck { background: #e08a00; }
+  .checks .ref { font-weight: 600; } .checks .note { color: #555; margin-top: 6px; font-size: 13px; }
   footer { text-align: center; color: var(--muted); font-size: 13px; padding-bottom: 24px; }
   footer a { color: var(--navy); }
 </style>
@@ -129,6 +137,9 @@
       MF เป็น Excel → ได้ <b>MF-LCH.pdf / MF-LKR.pdf / …</b> แยกตาม DELIVERY มีหน้า SUMMARY เป็นใบปะหน้า (ตัวแดงตาม shed ทุกหน้า) ·
       CNTRS เป็น Excel → ได้ <b>CNTRS.pdf</b> แยกตาม DELIVERY จาก SHED NUMBER (0332 = THLKR /GATE n …) และแยกตู้ SOC<br>
       ชื่อ / ตำแหน่ง / เบอร์โทร จำไว้ในเบราว์เซอร์นี้ (แต่ละคนแก้ของตัวเองได้) ·
+      <b>ตรวจกฎ</b> (MF / CNTRS ที่เป็น Excel): SHED (DG = 2826 · LAOS ลง BKK = 0124 · USED ENGINE ลง BKK = 0126 · SHED ใน MF ตรงกับ CNTRS) ·
+      ประเทศปลายทาง · CARGO MOVEMENT (TRANSHIPMENT = 3 · TRANSIT = 7) · TAX ID = NOTIFY · DG และขนาดตู้ MF ตรงกับ CNTRS · ตู้ DG ใน CNTRS อยู่ 2826 —
+      ถ้าเจอจะขึ้นกล่องแจ้งเตือนใต้ตาราง (เอกสารยังทำให้ตามปกติ)<br>
       ไฟล์ถูกประมวลผลในเบราว์เซอร์ของคุณเท่านั้น ไม่มีการอัปโหลดไปที่ใด
     </p>
     <div class="msg" id="msg"></div>
@@ -140,6 +151,7 @@
       <thead><tr><th>DELIVERY</th><th>20'</th><th>40'</th><th>ตู้</th><th>B/L</th><th>น้ำหนัก (KGS)</th><th>หีบห่อ</th></tr></thead>
       <tbody id="tbody"></tbody>
     </table></div>
+    <div class="checks" id="checks"></div>
     <div class="toolbar">
       <button id="download">ดาวน์โหลดทั้งหมด</button>
       <span id="dlFiles" style="display:contents"></span>
@@ -153,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31a</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31b</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -809,6 +821,102 @@ async function buildSplit(main, summ, sumBytes, gate) {
   return out;
 }
 
+
+// ---------- rule checks (warnings only) — same as scripts/checks.py ----------
+const DEST = { LAOS: "LA", LAO: "LA", MYANMAR: "MM", CHINA: "CN", MALAYSIA: "MY", PHILIPPINES: "PH", CAMBODIA: "KH",
+               "MARSHALL ISLAND": "MH", INDIA: "IN" };
+const RE_DG = /\bCLASS\s*[:=]?\s*\d|\bUN\s*#?\s*[:=]?\s*\d{4}\b|\bIMO\b|HAZARD/i;
+const NOT_NAME = new Set(["CO", "LTD", "LIMITED", "COMPANY", "THE", "PUBLIC", "CORP", "CORPORATION", "INC", "HEAD", "OFFICE", "BRANCH", "NO"]);
+const nameWords = s => s.toUpperCase().replace(/[^A-Z0-9 ]/g, " ").split(/\s+/).filter(w => w && !NOT_NAME.has(w) && !/^\d+$/.test(w));
+// every word of the TAX ID name is in the NOTIFY name; the TAX ID field is often cut off (MINBURI, MI)
+function sameName(tax, notify) {
+  let t = nameWords(tax); const n = new Set(nameWords(notify));
+  if (t.length && !n.has(t.at(-1)) && [...n].some(w => w.startsWith(t.at(-1)))) t = t.slice(0, -1);
+  return t.every(w => n.has(w));
+}
+
+// MANIFEST .xls -> {B/L: shed, dest, move, tax, notify, text, cntrs, types, pod}
+function readMfRules(bytes) {
+  const { rg, cell } = sheetCells(bytes);
+  const SKIP = ["VESSEL & VOYAGE", "PORT OF LOADING", "BILL OF LANDING NO.", "1) SHIPPER", "3) NOTIFY PARTY"];
+  const bls = {}; let cur = null, pod = "", m;
+  for (let r = rg.s.r; r <= rg.e.r; r++) {
+    const v = Array.from({ length: 23 }, (_, c) => cell(r, c).replace(/\t/g, " ").trim());
+    const line = v.filter(Boolean).join(" ");
+    if (v[0] === "PORT OF LOADING") pod = v[8];
+    if (line.includes("PORT TOTAL") || line.includes("GRAND TOTAL")) { cur = null; continue; }
+    if (v[0].startsWith("PortOfDischarge") || SKIP.includes(v[0])) continue;
+    if (RE_BL.test(v[0])) { cur = v[0]; bls[cur] = { pod, col0: [], marks: [], desc: [], f15: [], cntrs: [], types: [] }; }
+    if (!cur) continue;
+    const b = bls[cur];
+    for (const [k, c] of [["col0", 0], ["marks", 5], ["marks", 6], ["desc", 10], ["f15", 15]]) if (v[c]) b[k].push(v[c]);
+    b.cntrs.push(...((v[5] + " " + v[6]).match(RE_CN) || []));
+    if ((m = v[10].match(/^(\d{2}[A-Z]\d)X\d+/))) b.types.push(m[1]);
+  }
+  for (const b of Object.values(bls)) {
+    const f = b.f15.join(" | ");
+    b.shed = (f.match(/SHED NO\.\s*(\d+)/) || [, ""])[1];
+    b.dest = (f.match(/2\)[^|]*\(([A-Z]{0,2})\)/) || [, ""])[1];
+    b.move = (f.match(/CARGO MOVEMENT\s*\(([^)]*)\)/) || [, ""])[1];
+    b.tax = (b.f15.join(" ").match(/TAX ID:\s*\((.*)\)/) || [, ""])[1].trim();
+    b.text = [...b.col0.slice(1), ...b.marks, ...b.desc].join(" ").toUpperCase();
+    const notify = []; let on = false;
+    for (let l of b.col0) {
+      if (l.startsWith("N :")) { on = true; l = l.slice(3); } else if (/^[SC] :/.test(l)) on = false;
+      if (on) notify.push(l);
+    }
+    b.notify = notify.join(" ");
+  }
+  return bls;
+}
+
+// -> { found: [{level, ref, msg}], notes: [...] }; level "ผิด" = wrong, "ตรวจ" = a person should look.
+// DG outside SHED 2826 is "ผิด" when the job uses 2826, else "ตรวจ" (some terminals keep their DG, e.g. 2835)
+function runChecks(port) {
+  const found = [], notes = [], add = (level, ref, msg) => found.push({ level, ref, msg });
+  const xmf = mfFiles().filter(f => !f.lines), xcn = cnFiles().filter(f => !f.lines);
+  if (xmf.length < mfFiles().length) notes.push("MF ที่เป็น PDF ไม่ได้ตรวจกฎ (ตรวจได้เฉพาะ MF Excel)");
+  if (xcn.length < cnFiles().length) notes.push("CNTRS ที่เป็น PDF ไม่ได้ตรวจกฎ (ตรวจได้เฉพาะ CNTRS Excel)");
+  const bls = Object.assign({}, ...xmf.map(f => readMfRules(f.bytes)));
+  const rows = xcn.flatMap(f => readCntrsRows(f.bytes).rows), cnt = Object.fromEntries(rows.map(r => [r.cntr, r]));
+  const dgLevel = sheds => sheds.has("2826") ? "ผิด" : "ตรวจ";
+  const mfSheds = new Set(Object.values(bls).map(b => b.shed)), dgByCntr = {};
+  for (const [no, b] of Object.entries(bls)) {
+    const t = b.text, pod = b.pod || port, dg = RE_DG.test(t), tranship = t.includes("TRANSHIP");
+    const country = Object.keys(DEST).find(k => new RegExp(`TRANS(IT|HIP).*\\b${k}\\b|\\b${k}\\b.*TRANS(IT|HIP)`).test(t)) || "";
+    const laos = DEST[country] === "LA";
+    if (dg && pod === "LAEM CHABANG" && b.shed !== "2826") add(dgLevel(mfSheds), no, `สินค้า DG ลง LAEM CHABANG ต้องเป็น SHED NO. 2826 แต่ MF เป็น ${b.shed || "-"}`);
+    if (laos && pod === "BANGKOK" && b.shed !== "0124") add("ผิด", no, `LAOS ลง BANGKOK ต้องเป็น SHED NO. 0124 แต่ MF เป็น ${b.shed || "-"}`);
+    if (t.includes("USED ENGINE") && pod === "BANGKOK" && b.shed !== "0126") add("ผิด", no, `USED ENGINE ลง BANGKOK ต้องเป็น SHED NO. 0126 แต่ MF เป็น ${b.shed || "-"}`);
+    if (country && b.dest !== DEST[country]) add("ผิด", no, `B/L บอก TRANSIT ไป ${country} ประเทศปลายทางต้องเป็น (${DEST[country]}) แต่ MF เป็น (${b.dest})`);
+    if (tranship && !b.move.startsWith("3")) add("ผิด", no, `มีคำว่า TRANSHIPMENT ต้องเป็น CARGO MOVEMENT (3-TRANSHIPMENT) แต่ MF เป็น (${b.move})`);
+    else if (country && !laos && !tranship && !b.move.startsWith("7")) add("ผิด", no, `TRANSIT ไป ${country} ต้องเป็น CARGO MOVEMENT (7-TRANSIT) แต่ MF เป็น (${b.move})`);
+    if (["3", "7", "L"].includes(b.move[0]) && !country && !tranship && !t.includes("TRANSIT"))
+      add("ตรวจ", no, `CARGO MOVEMENT (${b.move}) แต่ไม่พบข้อความ TRANSIT / TRANSHIPMENT ใน B/L`);
+    if (b.tax && nameWords(b.tax).length && !sameName(b.tax, b.notify)) add("ตรวจ", no, `TAX ID (${b.tax}) ไม่ตรงกับ NOTIFY (${b.notify})`);
+    for (const c of b.cntrs) {                               // MF against CNTRS, container by container
+      const x = cnt[c]; if (!x) continue;
+      (dgByCntr[c] ||= []).push([no, dg]);
+      if (x.shed && b.shed && x.shed !== b.shed.padStart(4, "0")) add("ผิด", `${no} / ${c}`, `SHED NO. ใน MF ${b.shed} ไม่ตรงกับ SHED NUMBER ใน CNTRS ${x.shed}`);
+      if (new Set(b.types).size === 1) {
+        const csz = x.size.includes("(20')") ? "20" : x.size.includes("(40')") ? "40" : "";
+        if (csz && (b.types[0][0] === "2") !== (csz === "20")) add("ผิด", `${no} / ${c}`, `ขนาดตู้ใน MF ${b.types[0]} ไม่ตรงกับ CNTRS ${x.size}`);
+      }
+    }
+  }
+  for (const [c, lst] of Object.entries(dgByCntr)) {         // DG per container: any of its B/L against CNTRS
+    const cdg = RE_DG.test(cnt[c].remark), mdg = lst.some(([, d]) => d);
+    if (cdg !== mdg) add("ตรวจ", `${c} (${lst.map(([n]) => n).join(", ")})`,
+                         cdg ? "CNTRS ระบุเป็น HAZARDOUS แต่ใน MF ไม่พบ CLASS / UN" : "MF มี CLASS / UN แต่ CNTRS ไม่ได้ระบุ HAZARDOUS");
+  }
+  if (PORTS[port] === "THLCH") {                             // every DG container in CNTRS, SOC too
+    const cnSheds = new Set(rows.map(r => r.shed));
+    for (const x of rows) if (RE_DG.test(x.remark) && x.shed !== "2826")
+      add(dgLevel(cnSheds), x.cntr, `CNTRS: ตู้ DG (${x.remark.split(/\s+/).join(" ")}) ของ ${x.cons.join(" ").slice(0, 45)} ต้องอยู่ SHED 2826 แต่อยู่ SHED ${x.shed || "-"}`);
+  }
+  return { found, notes };
+}
+
 // ---------- run / render ----------
 const staffNow = () => ({ name: $("stName").value.trim(), position: $("stPos").value.trim(), tel: $("stTel").value.trim() });
 
@@ -830,7 +938,7 @@ async function run() {
     const gate = $("gate").value;
     PLACE.THLKR = `LATKRABANG ${gateText(gate)}`;
     const sum = await buildSummary(vname, port, main, summ.filter(x => !x.empty));
-    report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs, sum,
+    report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs, sum, checks: runChecks(port),
                edi: await buildSumEdi(vessel, port, summ, T, soc, staffNow()), split: await buildSplit(main, summ, sum, gate) };
     render();
   } catch (err) {
@@ -863,6 +971,13 @@ async function render() {
       `<td>${s.cntrs.length}</td><td colspan="3">[SUM-EDI, MANIFEST AS PER ATTACHED]</td></tr>` +
       `<tr class="bls hidden" id="bls${i}"><td colspan="7">${s.cntrs.join(", ")}</td></tr>`).join("") +
     (soc.length ? `<tr class="grand"><td>GRAND TOTAL</td><td></td><td></td><td>${grand}</td><td colspan="3"></td></tr>` : "");
+  const { found, notes } = report.checks, ng = found.filter(x => x.level === "ผิด").length;
+  $("checks").className = found.length ? "checks" : "checks pass";
+  $("checks").innerHTML = (found.length
+      ? `<h3>⚠ ตรวจกฎแล้วพบ ${found.length} รายการ (ผิด ${ng} · ต้องตรวจ ${found.length - ng})</h3><ul>` +
+        found.map(x => `<li><span class="lv ${x.level === "ผิด" ? "ng" : "ck"}">${x.level}</span><span class="ref">${escapeHtml(x.ref)}</span> — ${escapeHtml(x.msg)}</li>`).join("") + "</ul>"
+      : "✓ ตรวจกฎแล้ว ผ่านทุกข้อ") +
+    notes.map(n => `<div class="note">${escapeHtml(n)}</div>`).join("");
   const warn = [];
   if (notInCntrs.length) warn.push(`ตู้ใน MF ที่ไม่มีใน CNTRS: ${notInCntrs.join(", ")}`);
   if (nosize.length) warn.push(`ตู้ที่ไม่ทราบขนาด (ไม่ได้นับใน 20'/40'): ${nosize.join(", ")}`);

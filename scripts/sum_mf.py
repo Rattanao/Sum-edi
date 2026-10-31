@@ -468,6 +468,8 @@ def main():
     write_sum_edi(os.path.join(out, "SUM-EDI.pdf"), vessel, port, summ, T, soc, staff)
     import split_docs                    # MF-<DELIVERY>.pdf with the SUMMARY cover + CNTRS.pdf per DELIVERY (Excel inputs)
     split = split_docs.write_all(out, mf, cntrs, main_code, summ, os.path.join(out, "SUMMARY.pdf"), a.gate)
+    import checks                        # rule checks on the input files (warnings only)
+    found, notes = checks.run_checks(mf, cntrs, port)
 
     print(f"MF: {', '.join(mf)}\nCNTRS: {', '.join(cntrs) or '- (no SOC check)'}\nVESSEL: {vessel}   PORT: {port}")
     for x in summ:
@@ -485,6 +487,9 @@ def main():
     print("SIGNATURE:", "yes" if os.path.exists(SIGNATURE) else "none (assets/signature.png missing)")
     print(f"OUTPUT: {os.path.join(out, 'SUMMARY.pdf')} , {os.path.join(out, 'SUM-EDI.pdf')}")
     for line in split: print("       ", line)
+    print(f"CHECKS: {len(found)} found" if found else "CHECKS: OK (all rules passed)")
+    for level, ref, msg in found: print(f"  [{level}] {ref}: {msg}")
+    for n in notes: print("  NOTE:", n)
 
 
 if __name__ == "__main__":
