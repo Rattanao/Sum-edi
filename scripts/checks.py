@@ -122,7 +122,7 @@ def run_checks(mf, cn, port):
             add("ตรวจ", f"{c} ({', '.join(n for n, _ in lst)})", "CNTRS ระบุเป็น HAZARDOUS แต่ใน MF ไม่พบ CLASS / UN" if cdg
                 else "MF มี CLASS / UN แต่ CNTRS ไม่ได้ระบุ HAZARDOUS")
     if S.PORTS.get(port) == "THLCH":                            # every DG container in CNTRS, SOC too
-        cn_sheds = {r["shed"] for r in rows}
+        cn_sheds = {r["shed"] for r in rows} | mf_sheds              # the job uses 2826 in MF or CNTRS
         for x in rows:
             if DG.search(x["remark"]) and x["shed"] != "2826":
                 add(dg_level(cn_sheds), x["cntr"], f"CNTRS: ตู้ DG ({' '.join(x['remark'].split())}) ของ "

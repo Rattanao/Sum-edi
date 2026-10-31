@@ -165,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31b</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31c</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -910,7 +910,7 @@ function runChecks(port) {
                          cdg ? "CNTRS ระบุเป็น HAZARDOUS แต่ใน MF ไม่พบ CLASS / UN" : "MF มี CLASS / UN แต่ CNTRS ไม่ได้ระบุ HAZARDOUS");
   }
   if (PORTS[port] === "THLCH") {                             // every DG container in CNTRS, SOC too
-    const cnSheds = new Set(rows.map(r => r.shed));
+    const cnSheds = new Set([...rows.map(r => r.shed), ...mfSheds]);   // the job uses 2826 in MF or CNTRS
     for (const x of rows) if (RE_DG.test(x.remark) && x.shed !== "2826")
       add(dgLevel(cnSheds), x.cntr, `CNTRS: ตู้ DG (${x.remark.split(/\s+/).join(" ")}) ของ ${x.cons.join(" ").slice(0, 45)} ต้องอยู่ SHED 2826 แต่อยู่ SHED ${x.shed || "-"}`);
   }
