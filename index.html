@@ -17,14 +17,14 @@
     --red: #c00000; --green: #1e7b34; --soc: #fff59d;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Sarabun", Tahoma, sans-serif; background: var(--bg); color: var(--text); }
+  body { margin: 0; font-family: "Sarabun", Tahoma, sans-serif; font-size: 14px; background: var(--bg); color: var(--text); }
   header { background: var(--navy); color: #fff; padding: 18px 16px; }
   header .wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
   header .brand { background: #fff; border-radius: 6px; padding: 5px 10px; display: inline-flex; line-height: 0; flex: 0 0 auto; }
   header .brand img { height: 30px; width: auto; display: block; }
-  header h1 { margin: 0; font-size: 26px; letter-spacing: 1px; }
-  header p { margin: 0; opacity: .8; font-size: 15px; }
-  header .by { margin-left: auto; font-weight: 700; font-size: 15px; text-align: right; line-height: 1.5; align-self: center; }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+  header p { margin: 0; opacity: .8; font-size: 13px; }
+  header .by { margin-left: auto; font-weight: 700; font-size: 13px; text-align: right; line-height: 1.5; align-self: center; }
   .wrap { max-width: 1180px; margin: 0 auto; }
   main { padding: 20px 16px 40px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 18px; margin-bottom: 18px; }
@@ -32,33 +32,33 @@
   .staff { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-top: 14px; }
   @media (max-width: 820px) { .inputs, .staff { grid-template-columns: 1fr; } }
   .inputs > div, .staff > div { min-width: 0; }
-  label.t { display: block; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
-  label.t small { font-weight: 400; color: var(--muted); }
-  input[type=text] { width: 100%; font: inherit; font-size: 16px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; }
-  .drop { border: 2px dashed #9aa8c3; border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; background: #fafbfd; transition: .15s; min-height: 58px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+  label.t { display: block; font-weight: 600; font-size: 14px; color: var(--navy); margin-bottom: 6px; }
+  label.t small { font-weight: 400; font-size: 12px; color: var(--muted); }
+  input[type=text] { width: 100%; font: inherit; font-size: 14px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; }
+  .drop { border: 2px dashed #9aa8c3; border-radius: 8px; padding: 10px 12px; font-size: 13px; text-align: center; cursor: pointer; background: #fafbfd; transition: .15s; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
   .drop.over { background: var(--navy-soft); border-color: var(--navy); }
   .drop b { color: var(--navy); }
   .drop img { max-height: 40px; }
-  button { font: inherit; font-weight: 600; font-size: 16px; border: 0; border-radius: 8px; padding: 12px 20px; cursor: pointer; background: var(--navy); color: #fff; }
+  button { font: inherit; font-weight: 600; font-size: 14px; border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; background: var(--navy); color: #fff; }
   button:disabled { opacity: .4; cursor: not-allowed; }
   button.ghost { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
-  button.small { padding: 6px 12px; font-size: 14px; }
+  button.small { padding: 5px 10px; font-size: 13px; }
   .btns { display: grid; grid-template-columns: auto auto; gap: 8px; align-items: stretch; }
   .btns .wide { grid-column: 1 / -1; }
-  .rules { font-size: 14px; color: var(--muted); margin: 12px 0 0; line-height: 1.6; }
+  .rules { font-size: 12.5px; color: var(--muted); margin: 12px 0 0; line-height: 1.6; }
   .rules code { background: var(--navy-soft); color: var(--navy); padding: 1px 6px; border-radius: 4px; }
   .msg { color: var(--red); font-weight: 600; margin-top: 10px; white-space: pre-line; }
   .info { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
-  .info div { padding: 8px 14px; border-right: 1px solid var(--line); }
+  .info div { padding: 6px 12px; font-size: 13px; border-right: 1px solid var(--line); }
   .info .k { background: var(--navy-soft); color: var(--navy); font-weight: 700; }
   .info .ok { color: var(--green); font-weight: 700; }
   .info .ng { color: var(--red); font-weight: 700; }
   .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
   .hint { color: #555; font-size: 14px; margin-top: 8px; text-align: right; }
   .hint.stale { color: #b00; font-weight: 600; }
-  select { font: inherit; padding: 9px 10px; border: 1px solid #c7ccd6; border-radius: 8px; width: 100%; background: #fff; }
+  select { font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid #c7ccd6; border-radius: 8px; width: 100%; background: #fff; }
   .tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
-  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
   th { background: var(--navy); color: #fff; padding: 10px 8px; white-space: nowrap; }
   td { padding: 7px 10px; border-top: 1px solid var(--line); white-space: nowrap; text-align: center; }
   td.n { text-align: right; font-variant-numeric: tabular-nums; }
@@ -83,14 +83,14 @@
   .viewer canvas { background: #fff; box-shadow: 0 4px 24px rgba(0,0,0,.4); max-width: none; }
   .viewer.fit canvas { max-width: 100%; height: auto; }
   .hidden { display: none; }
-  .checks { margin: 14px 0; padding: 12px 14px; border-radius: 10px; border: 1px solid #f0b4b4; background: #fff5f5; }
+  .checks { margin: 14px 0; padding: 10px 14px; font-size: 13px; line-height: 1.5; border-radius: 10px; border: 1px solid #f0b4b4; background: #fff5f5; }
   .checks.pass { border-color: #b7dfc0; background: #f3fbf5; color: #1d6b35; font-weight: 600; }
-  .checks h3 { margin: 0 0 8px; font-size: 15px; color: #b00; }
+  .checks h3 { margin: 0 0 6px; font-size: 14px; color: #b00; }
   .checks ul { margin: 0; padding-left: 18px; }
   .checks li { margin: 3px 0; }
-  .checks .lv { display: inline-block; min-width: 38px; padding: 0 6px; margin-right: 6px; border-radius: 6px; color: #fff; font-size: 12px; text-align: center; }
+  .checks .lv { display: inline-block; min-width: 34px; padding: 0 5px; margin-right: 6px; border-radius: 5px; color: #fff; font-size: 11px; text-align: center; }
   .checks .lv.ng { background: #c62828; } .checks .lv.ck { background: #e08a00; }
-  .checks .ref { font-weight: 600; } .checks .note { color: #555; margin-top: 6px; font-size: 13px; }
+  .checks .ref { font-weight: 600; } .checks .note { color: #555; margin-top: 6px; font-size: 12px; }
   footer { text-align: center; color: var(--muted); font-size: 13px; padding-bottom: 24px; }
   footer a { color: var(--navy); }
 </style>
@@ -102,12 +102,12 @@
   <section class="card">
     <div class="inputs">
       <div>
-        <label class="t">ไฟล์ MF / MANIFEST + CNTRS (Excel หรือ PDF) + ATTACHED <small>ใส่พร้อมกันได้ หลายไฟล์ก็ได้ · CNTRS ไม่ใส่ก็ได้ (ใช้หาตู้ SOC) · ไฟล์อื่นทุกชนิด = เอกสารแนบ (ATTACHED)</small></label>
+        <label class="t">ไฟล์ MF + CNTRS + ATTACHED <small>Excel / PDF / รูป · หลายไฟล์ได้ · ไฟล์อื่น = เอกสารแนบ</small></label>
         <div class="drop" id="dropMf"><span id="mfText">ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b></span></div>
         <input type="file" id="fileMf" multiple class="hidden">
       </div>
       <div>
-        <label class="t">ลายเซ็น <small>รูป .png/.jpg เก็บไว้ในเบราว์เซอร์นี้</small></label>
+        <label class="t">ลายเซ็น <small>.png / .jpg</small></label>
         <div class="drop" id="dropSig"><span id="sigText">ยังไม่มีลายเซ็น <b>คลิกเพื่อเลือกรูป</b></span></div>
         <input type="file" id="fileSig" accept="image/png,image/jpeg" class="hidden">
       </div>
@@ -119,12 +119,12 @@
     </div>
     <div id="state" class="hint">ใส่ไฟล์ MF (+ CNTRS) แล้วกด Process</div>
     <div class="staff">
-      <div><label class="t" for="stName">ชื่อผู้จัดทำ <small>ท้าย SUM-EDI · ทุกคนแก้เป็นของตัวเองได้</small></label><input type="text" id="stName" autocomplete="off"></div>
+      <div><label class="t" for="stName">ชื่อผู้จัดทำ <small>ท้าย SUM-EDI · แก้ได้</small></label><input type="text" id="stName" autocomplete="off"></div>
       <div><label class="t" for="stPos">ตำแหน่ง</label><input type="text" id="stPos" autocomplete="off"></div>
       <div><label class="t" for="stTel">เบอร์โทร</label><input type="text" id="stTel" autocomplete="off"></div>
     </div>
     <div class="staff">
-      <div><label class="t" for="gate">LATKRABANG GATE <small>SUMMARY ของ THLKR · ตัวแดง LKB (… GATE n) ทุกหน้าของ MF-LKR · /GATE n ทุกหน้าของ CNTRS THLKR</small></label>
+      <div><label class="t" for="gate">LATKRABANG GATE <small>SUMMARY · MF-LKR · CNTRS</small></label>
         <select id="gate"><option value="2">2 — LATKRABANG (ESCO GATE 2)</option><option value="8">8 — LATKRABANG (TIFFA GATE 8)</option></select></div>
     </div>
     <p class="rules">
@@ -165,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31d</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31e</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
