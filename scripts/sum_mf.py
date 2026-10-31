@@ -466,12 +466,17 @@ def main():
     staff = dict(name=a.name, position=a.position, tel=a.tel)
     write_summary(os.path.join(out, "SUMMARY.pdf"), vessel_name, port, main_code, [x for x in summ if not x.get("empty")], a.gate)
     write_sum_edi(os.path.join(out, "SUM-EDI.pdf"), vessel, port, summ, T, soc, staff)
-    import split_docs                    # MF-<DELIVERY>.pdf with the SUMMARY cover + CNTRS.pdf per DELIVERY (Excel inputs)
-    split = split_docs.write_all(out, mf, cntrs, main_code, summ, os.path.join(out, "SUMMARY.pdf"), a.gate)
-    import checks                        # rule checks on the input files (warnings only)
-    found, notes = checks.run_checks(mf, cntrs, port)
+    import attach, split_docs, checks
+    # ATTACHED sheets: every other file next to the MF (any type)
+    att_use, att_pages = attach.plan(os.path.dirname(os.path.abspath(mf[0])), mf + cntrs, vessel, bls)
+    att_files = sorted({p["file"] for p in att_pages})
+    # MF-<DELIVERY>.pdf with the SUMMARY cover and the ATTACHED pages + CNTRS.pdf per DELIVERY (Excel inputs)
+    split = split_docs.write_all(out, mf, cntrs, main_code, summ, os.path.join(out, "SUMMARY.pdf"), a.gate, att_use)
+    found, notes = checks.run_checks(mf, cntrs, port, vessel, set(bls), att_pages)   # rule checks (warnings only)
 
     print(f"MF: {', '.join(mf)}\nCNTRS: {', '.join(cntrs) or '- (no SOC check)'}\nVESSEL: {vessel}   PORT: {port}")
+    if att_files: print(f"OTHER FILES (ATTACHED): {', '.join(os.path.basename(f) for f in att_files)} -> "
+                        f"{sum(len(v) for v in att_use.values())} page(s) put into MF after {', '.join(att_use) or '-'}")
     for x in summ:
         print(f"{label(x['g']):13} {x['n20']:>3}x20' {x['n40']:>3}x40' BL {x['bls']:>3} {x['gw']:>14,.3f} KGS {x['pkg']:>7,} PKGS")
         if x.get("extra"): print(f"              + HEUNG A not in MF: {', '.join(x['extra'])}")

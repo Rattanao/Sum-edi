@@ -102,9 +102,9 @@
   <section class="card">
     <div class="inputs">
       <div>
-        <label class="t">ไฟล์ MF / MANIFEST + CNTRS (Excel หรือ PDF) <small>ใส่พร้อมกันได้ หลายไฟล์ก็ได้ · CNTRS ไม่ใส่ก็ได้ (ใช้หาตู้ SOC)</small></label>
+        <label class="t">ไฟล์ MF / MANIFEST + CNTRS (Excel หรือ PDF) + ATTACHED <small>ใส่พร้อมกันได้ หลายไฟล์ก็ได้ · CNTRS ไม่ใส่ก็ได้ (ใช้หาตู้ SOC) · ไฟล์อื่นทุกชนิด = เอกสารแนบ (ATTACHED)</small></label>
         <div class="drop" id="dropMf"><span id="mfText">ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b></span></div>
-        <input type="file" id="fileMf" accept=".xls,.xlsx,.pdf" multiple class="hidden">
+        <input type="file" id="fileMf" multiple class="hidden">
       </div>
       <div>
         <label class="t">ลายเซ็น <small>รูป .png/.jpg เก็บไว้ในเบราว์เซอร์นี้</small></label>
@@ -165,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31c</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31d</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -218,7 +218,8 @@ function sheetCells(bytes) {
 
 // text lines of a PDF, words of one line joined left to right. The bigger page-header text is kept on its
 // own line, so a header printed over a container row does not mix with it (same as scripts/sum_mf.py)
-async function pdfLines(bytes) {
+async function pdfLines(bytes) { return (await pdfPages(bytes)).flat(); }
+async function pdfPages(bytes) {
   const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise, out = [];
   for (let n = 1; n <= pdf.numPages; n++) {
     const sp = (await (await pdf.getPage(n)).getTextContent()).items.filter(i => i.str.trim())
@@ -229,7 +230,7 @@ async function pdfLines(bytes) {
       const r = rows.slice(-4).find(r => Math.abs(r.y - w.y) <= 2 && r.big === w.big);
       if (r) r.w.push(w); else rows.push({ y: w.y, big: w.big, w: [w] });
     }
-    out.push(...rows.map(r => r.w.sort((a, b) => a.x - b.x).map(w => w.t).join(" ")));
+    out.push(rows.map(r => r.w.sort((a, b) => a.x - b.x).map(w => w.t).join(" ")));
   }
   return out;
 }
@@ -617,7 +618,7 @@ function readBlocks(bytes) {
 }
 
 // one MF-<DELIVERY>.pdf: the SUMMARY page of the row as the cover, then the CARGO MANIFEST pages
-async function buildMfGroup(sumBytes, idx, info, nos, blocks) {
+async function buildMfGroup(sumBytes, idx, info, nos, blocks, att = {}) {
   const doc = await PDFLib.PDFDocument.create(), F = await stdFonts(doc);
   const [cover] = await doc.copyPages(await PDFLib.PDFDocument.load(sumBytes), [idx]); doc.addPage(cover);
   const DASH = [1.5, .5, .5, .5], PITCH = 16.2, GAP = 18.4, BOTTOM = 552;
@@ -657,6 +658,7 @@ async function buildMfGroup(sumBytes, idx, info, nos, blocks) {
     }
   };
   let y = newPage(), pkg = 0, gw = 0, mtq = 0;
+  const ends = [];                                         // [B/L, MF page where it ends]
   for (const no of nos) {
     const rows = blocks[no]; let m;
     if ((m = rows[0][2].match(/^([\d,]+)\s/))) pkg += num(m[1]);
@@ -669,13 +671,17 @@ async function buildMfGroup(sumBytes, idx, info, nos, blocks) {
       y += PITCH;
     }
     y += GAP - PITCH;
+    ends.push([no, n]);
   }
   let last = y - GAP;
   if (last + 57.5 > BOTTOM + 8) { newPage(); last = 116.7 - 7.4; }
   gw = Math.round(gw * 1000) / 1000; mtq = Math.round(mtq * 1000) / 1000;
   total(last + 7.4, "PORT TOTAL:", .878, pkg, gw, mtq);
   newPage(); total(105.8, "GRAND TOTAL:", .753, pkg, gw, mtq);
-  return doc.save();
+  let nAtt = 0;
+  for (const [no, at] of ends.reverse())                   // last B/L first; the cover is page 0, so MF page n is index n
+    for (const [src, i] of [...(att[no] || [])].reverse()) { const [pg] = await doc.copyPages(src, [i]); doc.insertPage(at + 1, pg); nAtt++; }
+  return { bytes: await doc.save(), nAtt };
 }
 
 // CNTRS .xls -> header, [container rows with their SHED NUMBER]
@@ -805,7 +811,7 @@ async function buildCntrs(bytes, gate, date) {
 }
 
 // MF-<DELIVERY>.pdf (one Excel MF) + CNTRS.pdf (an Excel CNTRS)
-async function buildSplit(main, summ, sumBytes, gate) {
+async function buildSplit(main, summ, sumBytes, gate, att) {
   const out = [], date = printDate(), mf = mfFiles(), xlsCn = cnFiles().find(f => !f.lines);
   if (mf.length === 1 && !mf[0].lines) {
     const { vessel, pol, pod, blocks } = readBlocks(mf[0].bytes);
@@ -814,13 +820,104 @@ async function buildSplit(main, summ, sumBytes, gate) {
       const g = x.g, name = g.replace(/^TH(?=[A-Z]{3}$)/, ""), th = /^TH[A-Z]{3}$/.test(g);
       const info = { vessel, pol, pod, podc: main, date, place: th ? g : main,
                      note: g === "THLKR" ? `LKB ${gateText(gate)}` : "", podNote: th && g !== main && g !== "THLKR" ? `/ ${name}` : "" };
-      out.push({ name: `MF-${name}.pdf`, bytes: await buildMfGroup(sumBytes, i, info, x.nos.filter(n => blocks[n]), blocks) });
+      const r = await buildMfGroup(sumBytes, i, info, x.nos.filter(n => blocks[n]), blocks, att);
+      out.push({ name: `MF-${name}.pdf`, bytes: r.bytes, nAtt: r.nAtt });
     }
   }
   if (xlsCn) { const c = await buildCntrs(xlsCn.bytes, gate, date); out.push({ name: "CNTRS.pdf", bytes: c.bytes, lines: c.lines }); }
   return out;
 }
 
+
+
+// ---------- ATTACHED sheets — same as scripts/attach.py ----------
+// any other file (PDF, Excel, picture, any name): B/L from "BL NO. HASL..." + "VESSEL ..." in the content, page by page
+// for a PDF (a page without BL NO. continues the page before), else from a HASL... number in the file name
+const RE_BLNO = /\bB\s*\/?\s*L\s*NO\.?\s*:?\s*(HASL[A-Z0-9]{10,14})/;
+const RE_VESSEL = /\bVESSEL\b(?:\s*(?:NAME|&\s*VOYAGE))?\s*:?\s*([^\n]+)/;
+const sameVessel = (a, b) => { const n = s => s.toUpperCase().replace(/\bV\.?\s*(?=\d)/g, "").replace(/[^A-Z0-9]/g, ""); return n(a) === n(b); };
+const attFiles = () => files.filter(f => f.kind === "attached");
+
+// Excel ATTACHED sheet -> text lines (the cells of a row joined), every sheet
+function workbookLines(bytes) {
+  const wb = XLSX.read(bytes, { type: "array" }), out = [];
+  for (const n of wb.SheetNames)
+    for (const row of XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: "" }))
+      out.push(row.map(x => String(x).trim()).filter(Boolean).join("   "));
+  while (out.length && !out.at(-1)) out.pop();
+  return out;
+}
+
+// one ATTACHED file -> { doc (PDFDocument of its pages) | null, pages: [{page, vessel, bl}] }
+async function readAttached(item) {
+  const low = item.name.toLowerCase(), nameBl = (item.name.match(/HASL[A-Z0-9]{10,14}/i) || [""])[0].toUpperCase();
+  let doc = null, texts = [];
+  try {
+    if (low.endsWith(".pdf")) {
+      doc = await PDFLib.PDFDocument.load(item.bytes, { ignoreEncryption: true });
+      texts = (item.pages || []).map(p => p.join("\n"));
+    } else if (/\.xlsx?$/.test(low)) {
+      const lines = workbookLines(item.bytes);
+      doc = await PDFLib.PDFDocument.create();
+      const F = await stdFonts(doc);
+      for (let i = 0; i < Math.max(lines.length, 1); i += 70) {
+        const p = pen2(doc.addPage([595, 842]), F);
+        lines.slice(i, i + 70).forEach((l, k) => { if (l) p.t(40, 50 + k * 11, l.slice(0, 150), "t", 9); });
+      }
+      texts = [lines.join("\n")];
+    } else if (/\.(png|jpe?g)$/.test(low)) {
+      doc = await PDFLib.PDFDocument.create();
+      const img = low.endsWith(".png") ? await doc.embedPng(item.bytes) : await doc.embedJpg(item.bytes);
+      const k = Math.min(555 / img.width, 802 / img.height), page = doc.addPage([595, 842]);
+      page.drawImage(img, { x: 20, y: 842 - 20 - img.height * k, width: img.width * k, height: img.height * k });
+      texts = [""];
+    }
+  } catch { doc = null; }
+  if (!doc) return { doc: null, pages: [{ page: -1, vessel: "", bl: "" }] };
+  let vessel = "", bl = "", m;
+  const pages = doc.getPages().map((_, i) => {
+    const t = texts[i] || "";
+    if ((m = t.match(RE_BLNO))) bl = m[1];
+    if ((m = t.match(RE_VESSEL)) && m[1].trim()) vessel = m[1].trim();
+    return { page: i, vessel, bl: bl || nameBl };
+  });
+  return { doc, pages };
+}
+
+// every ATTACHED file -> { use: {B/L: [[doc, page]]} to put into the MF, pages: all pages read (for the checks) }
+async function planAttached(vessel, bls) {
+  const use = {}, pages = [];
+  for (const it of attFiles()) {
+    const r = await readAttached(it);
+    for (const p of r.pages) {
+      pages.push({ ...p, file: it.name });
+      if (r.doc && bls[p.bl] && (!p.vessel || sameVessel(p.vessel, vessel))) (use[p.bl] ||= []).push([r.doc, p.page]);
+    }
+  }
+  return { use, pages };
+}
+
+// ATTACHED checks: VESSEL / BL NO. must be the MF's; a B/L whose MF text says ATTACHED but has no sheet (grouped by master)
+function checkAttached(pages, vessel, allBls, mfBls, add, notes) {
+  for (const p of pages) {
+    const where = p.page < 0 ? p.file : `${p.file} หน้า ${p.page + 1}`;
+    if (p.page < 0) { notes.push(`${p.file}: เปิดเป็นเอกสารแนบไม่ได้ (ไม่ได้นำไปต่อ · ใช้ได้ PDF / Excel / PNG / JPG)`); continue; }
+    if (!p.bl) { notes.push(`${where}: ไม่พบ BL NO. ในไฟล์หรือชื่อไฟล์ (ไม่ได้นำไปต่อ)`); continue; }
+    if (!allBls[p.bl]) add("ผิด", where, `BL NO. ${p.bl} ไม่มีใน MF (ไม่ได้นำไปต่อ)`);
+    if (p.vessel && !sameVessel(p.vessel, vessel)) add("ผิด", where, `VESSEL ${p.vessel} ไม่ตรงกับ MF ${vessel} (ไม่ได้นำไปต่อ)`);
+  }
+  const have = new Set(pages.filter(p => allBls[p.bl] && (!p.vessel || sameVessel(p.vessel, vessel))).map(p => p.bl)), missing = {};
+  for (const [no, b] of Object.entries(mfBls)) {
+    if (!b.text.includes("ATTACH") || have.has(no)) continue;
+    const m = no.match(/^(HASL[A-Z0-9]*?\d)([A-Z]*)$/);
+    (missing[m ? m[1] : no] ||= []).push(m ? m[2] : "");
+  }
+  for (const [master, sub] of Object.entries(missing)) {
+    const ref = sub.includes("") ? master + (sub.some(Boolean) ? ` (+ ${sub.filter(Boolean).join(", ")})` : "")
+                                 : master + sub[0] + (sub.length > 1 ? ` (+ ${sub.slice(1).join(", ")})` : "");
+    add("ตรวจ", ref, "MF เขียนว่า AS PER ATTACHED แต่ไม่มีเอกสารแนบ (แนบหรือไม่แนบก็ได้)");
+  }
+}
 
 // ---------- rule checks (warnings only) — same as scripts/checks.py ----------
 const DEST = { LAOS: "LA", LAO: "LA", MYANMAR: "MM", CHINA: "CN", MALAYSIA: "MY", PHILIPPINES: "PH", CAMBODIA: "KH",
@@ -872,7 +969,7 @@ function readMfRules(bytes) {
 
 // -> { found: [{level, ref, msg}], notes: [...] }; level "ผิด" = wrong, "ตรวจ" = a person should look.
 // DG outside SHED 2826 is "ผิด" when the job uses 2826, else "ตรวจ" (some terminals keep their DG, e.g. 2835)
-function runChecks(port) {
+function runChecks(port, vessel = "", allBls = {}, attPages = []) {
   const found = [], notes = [], add = (level, ref, msg) => found.push({ level, ref, msg });
   const xmf = mfFiles().filter(f => !f.lines), xcn = cnFiles().filter(f => !f.lines);
   if (xmf.length < mfFiles().length) notes.push("MF ที่เป็น PDF ไม่ได้ตรวจกฎ (ตรวจได้เฉพาะ MF Excel)");
@@ -914,6 +1011,7 @@ function runChecks(port) {
     for (const x of rows) if (RE_DG.test(x.remark) && x.shed !== "2826")
       add(dgLevel(cnSheds), x.cntr, `CNTRS: ตู้ DG (${x.remark.split(/\s+/).join(" ")}) ของ ${x.cons.join(" ").slice(0, 45)} ต้องอยู่ SHED 2826 แต่อยู่ SHED ${x.shed || "-"}`);
   }
+  checkAttached(attPages, vessel, allBls, bls, add, notes);
   return { found, notes };
 }
 
@@ -938,8 +1036,9 @@ async function run() {
     const gate = $("gate").value;
     PLACE.THLKR = `LATKRABANG ${gateText(gate)}`;
     const sum = await buildSummary(vname, port, main, summ.filter(x => !x.empty));
-    report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs, sum, checks: runChecks(port),
-               edi: await buildSumEdi(vessel, port, summ, T, soc, staffNow()), split: await buildSplit(main, summ, sum, gate) };
+    const att = await planAttached(vessel, bls);           // ATTACHED sheets: put into MF-<DELIVERY>.pdf + checked
+    report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs, sum, checks: runChecks(port, vessel, bls, att.pages),
+               edi: await buildSumEdi(vessel, port, summ, T, soc, staffNow()), split: await buildSplit(main, summ, sum, gate, att.use) };
     render();
   } catch (err) {
     report = null; $("result").classList.add("hidden");
@@ -1042,15 +1141,16 @@ async function takeFiles(list) {
   for (const f of list) {
     const item = { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) };
     try {
-      if (/\.pdf$/i.test(f.name)) item.lines = await pdfLines(item.bytes);
-      Object.assign(item, kindOf(item));
+      if (/\.pdf$/i.test(f.name)) { item.pages = await pdfPages(item.bytes); item.lines = item.pages.flat(); }
+      if (/\.(pdf|xlsx?)$/i.test(f.name)) Object.assign(item, kindOf(item)); else item.kind = "other";
     } catch { item.kind = "other"; }
-    if (item.kind === "other") { bad.push(`"${f.name}" ไม่ใช่ไฟล์ MF (CARGO MANIFEST) หรือ CNTRS (CONTAINER LIST)`); continue; }
+    if (item.kind === "other") Object.assign(item, { kind: "attached", voy: "" });   // any other file = ATTACHED sheet
     files = files.filter(x => x.name !== item.name).concat(item);
     if (item.kind === "mf" && item.voy) files = files.filter(x => !x.voy || x.voy === item.voy);
   }
   const names = fs => fs.map(f => `<b>${escapeHtml(f.name)}</b>`).join(", ");
-  $("mfText").innerHTML = [mfFiles().length && `MF: ${names(mfFiles())}`, cnFiles().length && `CNTRS: ${names(cnFiles())}`]
+  $("mfText").innerHTML = [mfFiles().length && `MF: ${names(mfFiles())}`, cnFiles().length && `CNTRS: ${names(cnFiles())}`,
+                            attFiles().length && `ATTACHED: ${names(attFiles())}`]
     .filter(Boolean).join(" · ") + (files.length ? " (คลิกเพื่อเพิ่มไฟล์ · ลบไฟล์ = เริ่มใหม่)" : "ลากไฟล์มาวาง หรือ <b>คลิกเพื่อเลือกไฟล์</b>");
   dirty();
   if (bad.length) $("msg").textContent = [bad.join("\n"), $("msg").textContent].filter(Boolean).join("\n");

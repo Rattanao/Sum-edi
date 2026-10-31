@@ -69,7 +69,30 @@ def read_mf_rules(path):
     return bls
 
 
-def run_checks(mf, cn, port):
+def check_attached(pages, vessel, all_bls, mf_bls, add, notes):
+    """ATTACHED files: VESSEL / BL NO. must be the MF's; a B/L whose MF text says ATTACHED but has no sheet"""
+    from attach import same_vessel
+    for p in pages:
+        f = os.path.basename(p["file"])
+        where = f if p["page"] < 0 else f"{f} หน้า {p['page'] + 1}"
+        if p["page"] < 0: notes.append(f"{f}: เปิดเป็นเอกสารแนบไม่ได้ (ไม่ได้นำไปต่อ)"); continue
+        if not p["bl"]: notes.append(f"{where}: ไม่พบ BL NO. ในไฟล์หรือชื่อไฟล์ (ไม่ได้นำไปต่อ)"); continue
+        if p["bl"] not in all_bls: add("ผิด", where, f"BL NO. {p['bl']} ไม่มีใน MF (ไม่ได้นำไปต่อ)")
+        if p["vessel"] and not same_vessel(p["vessel"], vessel):
+            add("ผิด", where, f"VESSEL {p['vessel']} ไม่ตรงกับ MF {vessel} (ไม่ได้นำไปต่อ)")
+    have = {p["bl"] for p in pages if p["bl"] in all_bls and (not p["vessel"] or same_vessel(p["vessel"], vessel))}
+    missing = {}
+    for no, b in mf_bls.items():                               # grouped by master B/L: HASL...791 + B, C, D
+        if "ATTACH" in b["text"] and no not in have:
+            m = re.match(r"(HASL[A-Z0-9]*?\d)([A-Z]*)$", no)
+            missing.setdefault(m.group(1) if m else no, []).append(m.group(2) if m else "")
+    for master, sub in missing.items():
+        ref = master + (f" (+ {', '.join(s for s in sub if s)})" if any(sub) else "")
+        if "" not in sub: ref = f"{master}{sub[0]}" + (f" (+ {', '.join(sub[1:])})" if len(sub) > 1 else "")
+        add("ตรวจ", ref, "MF เขียนว่า AS PER ATTACHED แต่ไม่มีเอกสารแนบ (แนบหรือไม่แนบก็ได้)")
+
+
+def run_checks(mf, cn, port, vessel="", all_bls=(), attached=()):
     """-> [(level, reference, message)], [notes about files that could not be checked]"""
     out, notes = [], []
     add = lambda level, ref, msg: out.append((level, ref, msg))
@@ -127,4 +150,5 @@ def run_checks(mf, cn, port):
             if DG.search(x["remark"]) and x["shed"] != "2826":
                 add(dg_level(cn_sheds), x["cntr"], f"CNTRS: ตู้ DG ({' '.join(x['remark'].split())}) ของ "
                                                    f"{' '.join(x['cons'])[:45]} ต้องอยู่ SHED 2826 แต่อยู่ SHED {x['shed'] or '-'}")
+    check_attached(attached, vessel, set(all_bls) or set(bls), bls, add, notes)
     return out, notes

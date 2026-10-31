@@ -107,11 +107,13 @@ class Pdf:
             self.t(276.0, top + dy, k, right=True); self.t(279.5, top + dy, val)
 
 
-def write_group(path, info, nos, blocks, cover=None):
-    """MF pages of one DELIVERY; cover = (SUMMARY doc, page no.) put in front as the cover sheet"""
+def write_group(path, info, nos, blocks, cover=None, att=None):
+    """MF pages of one DELIVERY; cover = (SUMMARY doc, page no.) put in front as the cover sheet;
+    att = {B/L: [(doc, page)]} ATTACHED pages put right after the MF page where that B/L ends"""
     p = Pdf(info)
     y = p.new_page()
     pkg = gw = mtq = 0
+    ends = []                                  # (B/L, MF page where it ends)
     for no in nos:
         rows = blocks[no]
         first = rows[0]
@@ -129,15 +131,20 @@ def write_group(path, info, nos, blocks, cover=None):
             if r[3]: p.t(RIGHT, y, r[3], "t", right=True)
             y += PITCH
         y += GAP - PITCH          # next B/L baseline = last baseline + GAP
+        ends.append((no, p.n))
     last = y - GAP
     if last + 7.4 + 50.1 > BOTTOM + 8:
         p.new_page(); last = 116.7 - 7.4
     p.total(last + 7.4, "PORT TOTAL:", 0.878, pkg, gw, mtq)
     p.new_page()
     p.total(105.8, "GRAND TOTAL:", 0.753, pkg, gw, mtq)
+    n_att = 0
+    for no, n in reversed(ends):               # last B/L first, so the page numbers before it stay right
+        for doc, i in reversed((att or {}).get(no, [])):
+            p.doc.insert_pdf(doc, from_page=i, to_page=i, start_at=n); n_att += 1
     if cover: p.doc.insert_pdf(cover[0], from_page=cover[1], to_page=cover[1], start_at=0)
     p.doc.subset_fonts(); p.doc.save(path, garbage=3, deflate=True)
-    return pkg, round(gw, 3), round(mtq, 3), p.n
+    return pkg, round(gw, 3), round(mtq, 3), p.n, n_att
 
 
 # ---------------------------------------------------------------- CNTRS (CONTAINER LIST FOR FEEDER) per DELIVERY
@@ -275,7 +282,7 @@ def write_cntrs(path, cn_file, gate, date):
     return out
 
 
-def write_all(out, mf, cn, main_code, summ, summary_pdf, gate):
+def write_all(out, mf, cn, main_code, summ, summary_pdf, gate, att=None):
     """MF-<DELIVERY>.pdf (from one Excel MF; covers = the pages of SUMMARY.pdf, one per row with B/L in summ order)
     and CNTRS.pdf (from an Excel CNTRS) -> lines to print"""
     now = datetime.datetime.now()
@@ -294,8 +301,9 @@ def write_all(out, mf, cn, main_code, summ, summary_pdf, gate):
                         place=g if re.fullmatch(r"TH[A-Z]{3}", g) else main_code,
                         note=f"LKB {S.gate_text(gate)}" if g == "THLKR" else "", pod_note=f"/ {name}" if terminal else "")
             nos = [n for n in x["nos"] if n in blocks]
-            pkg, gw, mtq, n = write_group(os.path.join(out, f"MF-{name}.pdf"), info, nos, blocks, (sdoc, i))
-            lines.append(f"MF-{name}.pdf  SUMMARY + {n} pages  {len(nos)} B/L  {pkg:,} PKGS  {gw:,.3f} KGM  {mtq:,.3f} MTQ")
+            pkg, gw, mtq, n, na = write_group(os.path.join(out, f"MF-{name}.pdf"), info, nos, blocks, (sdoc, i), att)
+            lines.append(f"MF-{name}.pdf  SUMMARY + {n} pages{f' + {na} ATTACHED' if na else ''}  {len(nos)} B/L  "
+                         f"{pkg:,} PKGS  {gw:,.3f} KGM  {mtq:,.3f} MTQ")
         sdoc.close()
     cx = [f for f in cn if re.search(r"\.xlsx?$", f, re.I)]
     if cx:
