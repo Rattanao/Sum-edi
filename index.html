@@ -116,7 +116,7 @@
       <div><label class="t" for="stTel">เบอร์โทร</label><input type="text" id="stTel" autocomplete="off"></div>
     </div>
     <div class="staff">
-      <div><label class="t" for="gate">GATE ลาดกระบัง <small>หน้า SUMMARY ของ THLKR</small></label>
+      <div><label class="t" for="gate">LATKRABANG GATE <small>SUMMARY ของ THLKR · ตัวแดง LKB (… GATE n) ทุกหน้าของ MF-LKR · /GATE n ทุกหน้าของ CNTRS THLKR</small></label>
         <select id="gate"><option value="2">2 — LATKRABANG (ESCO GATE 2)</option><option value="8">8 — LATKRABANG (TIFFA GATE 8)</option></select></div>
     </div>
     <p class="rules">
@@ -126,6 +126,8 @@
       <b>TRANSHIPMENT</b> = CARGO MOVEMENT TRANSHIPMENT · <b>EMPTY</b> = ตู้เปล่า HEUNG A (4=MTY) · แสดงเฉพาะหัวข้อที่มีข้อมูล<br>
       <b>ตู้ SOC</b> = ตู้เจ้าของอื่นที่อยู่ใน CNTRS แต่ไม่มีใน MF แยกตามเจ้าของ (CONSIGNEE) และขนาด แล้วรวมใน <b>GRAND TOTAL</b> ·
       ขนาดตู้จาก CNTRS (ถ้าไม่มี ใช้รหัส <code>22G0</code> = 20' · <code>45G0</code> = 40')<br>
+      MF เป็น Excel → ได้ <b>MF-LCH.pdf / MF-LKR.pdf / …</b> แยกตาม DELIVERY มีหน้า SUMMARY เป็นใบปะหน้า (ตัวแดงตาม shed ทุกหน้า) ·
+      CNTRS เป็น Excel → ได้ <b>CNTRS.pdf</b> แยกตาม DELIVERY จาก SHED NUMBER (0332 = THLKR /GATE n …) และแยกตู้ SOC<br>
       ชื่อ / ตำแหน่ง / เบอร์โทร จำไว้ในเบราว์เซอร์นี้ (แต่ละคนแก้ของตัวเองได้) ·
       ไฟล์ถูกประมวลผลในเบราว์เซอร์ของคุณเท่านั้น ไม่มีการอัปโหลดไปที่ใด
     </p>
@@ -139,9 +141,8 @@
       <tbody id="tbody"></tbody>
     </table></div>
     <div class="toolbar">
-      <button id="download">ดาวน์โหลด SUM-EDI.pdf + SUMMARY.pdf</button>
-      <button id="dlEdi" class="ghost">SUM-EDI.pdf</button>
-      <button id="dlSum" class="ghost">SUMMARY.pdf</button>
+      <button id="download">ดาวน์โหลดทั้งหมด</button>
+      <span id="dlFiles" style="display:contents"></span>
     </div>
     <div class="preview" id="preview"></div>
   </section>
@@ -152,7 +153,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-30d</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31a</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -554,6 +555,260 @@ async function buildSumEdi(vessel, port, summ, T, soc, staff) {
   return doc.save();
 }
 
+
+// ---------- MF per DELIVERY + CNTRS per DELIVERY (Excel inputs) — same as scripts/split_docs.py ----------
+const RED = PDFLib.rgb(1, .08, .1);
+const pdfText = s => String(s).replace(/\t/g, " ").replace(/[^\x20-\x7E\xA0-\xFF]/g, "?");   // standard fonts: WinAnsi only
+const printDate = () => { const d = new Date(), z = n => String(n).padStart(2, "0");
+  return `${z(d.getDate())}/${z(d.getMonth() + 1)}/${d.getFullYear() + 543} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+async function stdFonts(doc) {
+  const S = PDFLib.StandardFonts;
+  return { a: await doc.embedFont(S.Helvetica), ab: await doc.embedFont(S.HelveticaBold), t: await doc.embedFont(S.TimesRoman) };
+}
+// x, y = baseline from the top-left (points), like pymupdf
+function pen2(page, F) {
+  const H = page.getHeight(), black = PDFLib.rgb(0, 0, 0);
+  return {
+    t(x, y, s, f = "a", size = 8, { right = false, center = false, color = black } = {}) {
+      s = pdfText(s); const w = F[f].widthOfTextAtSize(s, size);
+      page.drawText(s, { x: right ? x - w : center ? x - w / 2 : x, y: H - y, size, font: F[f], color });
+    },
+    line(x0, y0, x1, y1, dash) {
+      page.drawLine({ start: { x: x0, y: H - y0 }, end: { x: x1, y: H - y1 }, thickness: .5, ...(dash ? { dashArray: dash } : {}) });
+    },
+    rect(x0, y0, x1, y1, grey) {
+      page.drawRectangle({ x: x0, y: H - y1, width: x1 - x0, height: y1 - y0,
+        ...(grey != null ? { color: PDFLib.rgb(grey, grey, grey) } : { borderWidth: .5, borderColor: black }) });
+    },
+    image(ref, x, y, w, h) { page.drawImage(ref, { x, y: H - y - h, width: w, height: h }); },
+  };
+}
+
+// MANIFEST .xls -> vessel, port of loading, port of discharge, {B/L: [rows of 4 texts]} (SHED column left out)
+function readBlocks(bytes) {
+  const { rg, cell } = sheetCells(bytes);
+  const HEAD = ["CARGO MANIFEST", "VESSEL & VOYAGE", "PORT OF LOADING", "BILL OF LANDING NO.", "1) SHIPPER", "3) NOTIFY PARTY"];
+  const blocks = {}; let cur = null, vessel = "", pol = "", pod = "";
+  for (let r = rg.s.r; r <= rg.e.r; r++) {
+    const v = Array.from({ length: 23 }, (_, c) => cell(r, c).replace(/\t/g, " ").trim());
+    const line = v.filter(Boolean).join(" ");
+    if (v[0] === "VESSEL & VOYAGE") vessel ||= v[2];
+    if (v[0] === "PORT OF LOADING") { pol ||= v[2]; pod ||= v[8]; }
+    if (line.includes("PORT TOTAL") || line.includes("GRAND TOTAL")) { cur = null; continue; }
+    if (HEAD.includes(v[0]) || v[10] === "CARGO MANIFEST" || v[0].startsWith("PortOfDischarge")) continue;
+    if (RE_BL.test(v[0])) { cur = v[0]; blocks[cur] = []; }
+    if (!cur) continue;
+    const row = [v[0], v[5] || v[6], v[10], v[16]];
+    if (row.some(Boolean)) blocks[cur].push(row);
+  }
+  return { vessel, pol, pod, blocks };
+}
+
+// one MF-<DELIVERY>.pdf: the SUMMARY page of the row as the cover, then the CARGO MANIFEST pages
+async function buildMfGroup(sumBytes, idx, info, nos, blocks) {
+  const doc = await PDFLib.PDFDocument.create(), F = await stdFonts(doc);
+  const [cover] = await doc.copyPages(await PDFLib.PDFDocument.load(sumBytes), [idx]); doc.addPage(cover);
+  const DASH = [1.5, .5, .5, .5], PITCH = 16.2, GAP = 18.4, BOTTOM = 552;
+  let n = 0, p;
+  const newPage = () => {
+    p = pen2(doc.addPage([841, 595]), F); n++;
+    let d = 0;
+    if (n === 1) { p.rect(348.7, 18.0, 518.8, 46.3); p.t(433.7, 36.6, "CARGO MANIFEST", "ab", 13, { center: true }); }
+    else d = -28.5;
+    // red note from the shed, on every page: LKB (ESCO GATE 2) above the port / LAEM CHABANG / BMT
+    if (info.note) p.t(337.8, 67.6 + d, info.note, "a", 8, { color: RED });
+    if (info.podNote) p.t(339.0 + F.a.widthOfTextAtSize(info.pod, 8) + 3, 81.9 + d, info.podNote, "t", 8.5, { color: RED });
+    for (const [x, y, s, f] of [[34.5, 66.2, "VESSEL & VOYAGE", "ab"], [123.2, 66.2, info.vessel, "a"], [440.8, 66.2, "NATIONALITY  OF SHIP", "ab"],
+        [631.3, 67.8, "ARRIVAL DATE", "ab"], [727.9, 67.8, "01/01/1900", "a"], [34.5, 81.9, "PORT OF LOADING", "ab"], [123.2, 81.9, info.pol, "a"],
+        [239.2, 81.9, "PORT OF DISCHARGE", "ab"], [339.0, 81.9, info.pod, "a"], [442.4, 81.9, "NEXT PORT OF CALL", "ab"], [631.3, 81.9, "NAME OF MASTER", "ab"]])
+      p.t(x, y + d, s, f);
+    const top = 89.7 + d, bot = 132.2 + d;
+    for (const y of [top, bot]) p.line(33.0, y, 815.7, y);
+    for (const x of [33.0, 215.7, 382.6, 448.8, 595.2, 708.6, 815.7]) p.line(x, top, x, bot);
+    p.line(708.6, top + 15.8, 815.7, top + 15.8); p.line(759.0, top + 15.8, 759.0, bot);
+    p.t(39.2, 101.4 + d, "BILL OF LANDING NO.");
+    for (const [y, s] of [[109.4, "1) SHIPPER"], [117.2, "2) CONSIGNEE"], [126.7, "3) NOTIFY PARTY"]]) p.t(39.2, y + d, s, "a", 7.3);
+    p.t(299.2, 101.4 + d, "MARKS AND NUMBERS", "a", 8, { center: true }); p.t(299.2, 115.5 + d, "CONTAINER NO.", "a", 8, { center: true });
+    p.t(415.7, 115.5 + d, "NO. OF PKGS", "a", 8, { center: true }); p.t(522.0, 115.5 + d, "DESCRIPTION OF GOODS", "a", 8, { center: true });
+    p.t(599.8, 101.4 + d, "1) GROSS WEIGHT (KGM)"); p.t(599.8, 115.5 + d, "2) MEASUREMENT (MTQ)");
+    p.t(762.2, 101.4 + d, "FREIGHT", "a", 8, { center: true });
+    p.t(733.8, 115.5 + d, "PREPAID", "a", 8, { center: true }); p.t(787.4, 115.5 + d, "COLLECT", "a", 8, { center: true });
+    p.t(38.2, 570.2, `PortOfDischarge: ${info.podc} PlaceDelivery: ${info.place} RecvControlNo:  Print Date  : ${info.date}`);
+    p.t(747.2, 571.8, "Page", "a", 9); p.t(781.8, 571.8, String(n), "a", 9);
+    return 145.2 + d;
+  };
+  const total = (top, lab, grey, pkg, gw, mtq) => {
+    p.rect(33.0, top, 821.2, top + 50.1, grey); p.line(33.0, top + 1.5, 815.2, top + 1.5, DASH);
+    p.t(165.0, top + 11.8, lab, "ab", 8, { right: true });
+    for (const [dy, k, val] of [[11.8, "TOTAL MEASUREMENT:", `${f3(mtq)} MTQ`], [26.1, "TOTAL GROSSWEIGHT:", `${f3(gw)} KGM`], [42.5, "TOTAL PACK:", `${f0(pkg)} PACKAGES`]]) {
+      p.t(276.0, top + dy, k, "a", 8, { right: true }); p.t(279.5, top + dy, val);
+    }
+  };
+  let y = newPage(), pkg = 0, gw = 0, mtq = 0;
+  for (const no of nos) {
+    const rows = blocks[no]; let m;
+    if ((m = rows[0][2].match(/^([\d,]+)\s/))) pkg += num(m[1]);
+    for (const r of rows) if ((m = r[3].match(/^([\d,.]+)\s*(KGM|MTQ)/))) { if (m[2] === "KGM") gw += num(m[1]); else mtq += num(m[1]); }
+    if (y + (rows.length - 1) * PITCH > BOTTOM && y > 150) y = newPage();
+    p.line(34.5, y - 10.2, 816.8, y - 10.2, DASH);
+    for (const r of rows) {
+      [35.0, 219.2, 389.4].forEach((x, i) => { if (r[i]) p.t(x, y, r[i], "t"); });
+      if (r[3]) p.t(690.0, y, r[3], "t", 8, { right: true });
+      y += PITCH;
+    }
+    y += GAP - PITCH;
+  }
+  let last = y - GAP;
+  if (last + 57.5 > BOTTOM + 8) { newPage(); last = 116.7 - 7.4; }
+  gw = Math.round(gw * 1000) / 1000; mtq = Math.round(mtq * 1000) / 1000;
+  total(last + 7.4, "PORT TOTAL:", .878, pkg, gw, mtq);
+  newPage(); total(105.8, "GRAND TOTAL:", .753, pkg, gw, mtq);
+  return doc.save();
+}
+
+// CNTRS .xls -> header, [container rows with their SHED NUMBER]
+function readCntrsRows(bytes) {
+  const { rg, cell } = sheetCells(bytes);
+  const head = { vessel: "", voy: "", arrival: "", pod: "", deliv: "", recv: "" }, rows = [];
+  let shed = "", name = "", cur = null, m;
+  for (let r = rg.s.r; r <= rg.e.r; r++) {
+    const v = Array.from({ length: 31 }, (_, c) => cell(r, c));
+    if (v[0] === "CONTAINER LIST FOR FEEDER" && !head.vessel)
+      Object.assign(head, { vessel: v[7], voy: v[12], arrival: v[17] || "__/__/____", pod: v[24], deliv: v[28] });
+    if (!head.recv && (m = v.join(" ").match(/RecvControlNo:\s*(\S+)/))) head.recv = m[1];
+    if (v[0].startsWith("SHED NUMBER")) {
+      m = (v[2] || v.slice(1).find(Boolean) || "").match(/^\d+/);
+      shed = m ? m[0].padStart(4, "0") : ""; name = v[5]; cur = null; continue;
+    }
+    if (/^[A-Z]{4}\d{7}$/.test(v[0])) {
+      rows.push(cur = { cntr: v[0], type: v[3], size: v[7], cons: [v[9]], gw: num(v[15] || 0), status: v[18], pol: v[20],
+                        remark: v.slice(21, 25).filter(Boolean).join(" "), shed, shedname: name });
+    } else if (cur && !v[0] && v[9] && !v[3] && !v[15]) cur.cons.push(v[9]);     // 2nd consignee line
+    else cur = null;
+  }
+  return { head, rows };
+}
+
+const ONES = ("ZERO ONE TWO THREE FOUR FIVE SIX SEVEN EIGHT NINE TEN ELEVEN TWELVE THIRTEEN FOURTEEN FIFTEEN SIXTEEN " +
+              "SEVENTEEN EIGHTEEN NINETEEN").split(" ");
+const TENS = "- - TWENTY THIRTY FORTY FIFTY SIXTY SEVENTY EIGHTY NINETY".split(" ");
+const words = n => n < 20 ? ONES[n] : n < 100 ? TENS[Math.floor(n / 10)] + (n % 10 ? " " + ONES[n % 10] : "")
+  : `${ONES[Math.floor(n / 100)]} HUNDRED` + (n % 100 ? " " + words(n % 100) : "");
+
+// Thai shed name: the standard PDF fonts have no Thai, so it is drawn as a picture
+async function thaiImage(doc, s, size) {
+  const k = 4, font = `${size * k}px Tahoma, "Leelawadee UI", sans-serif`;
+  const cv = document.createElement("canvas"), ctx = cv.getContext("2d");
+  ctx.font = font; cv.width = Math.ceil(ctx.measureText(s).width) + 4; cv.height = Math.ceil(size * k * 1.5);
+  ctx.font = font; ctx.fillStyle = "#000"; ctx.fillText(s, 0, size * k * 1.1);
+  const img = await doc.embedPng(await (await fetch(cv.toDataURL("image/png"))).arrayBuffer());
+  return { img, w: cv.width / k, h: cv.height / k, base: size * 1.1 };
+}
+
+// CNTRS.pdf: HEUNG A containers per DELIVERY (from the shed) in the SUM-EDI order, then each SOC owner;
+// a new page per SHED NUMBER, items counted again from 1, shed totals, Total Summary, As Agents, Page n / N
+async function buildCntrs(bytes, gate, date) {
+  const { head, rows } = readCntrsRows(bytes);
+  const doc = await PDFLib.PDFDocument.create(), F = await stdFonts(doc), thai = {}, lines = [];
+  const sect = new Map();
+  for (const c of rows) {
+    const d = head.deliv === head.pod ? (SHED_DELIVERY[c.shed] || head.deliv) : head.deliv;
+    const cons = c.cons.join(" "), own = RE_HAL.test(cons) ? "" : socOwner(cons);
+    const key = JSON.stringify([own ? 1 : 0, ORDER.includes(d) ? ORDER.indexOf(d) : 99, d, own]);
+    if (!sect.has(key)) sect.set(key, new Map());
+    const sh = sect.get(key), sk = c.shed + "|" + c.shedname;
+    if (!sh.has(sk)) sh.set(sk, []);
+    sh.get(sk).push(c);
+  }
+  const cmp = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1; return 0; };
+  for (const key of [...sect.keys()].sort((a, b) => cmp(JSON.parse(a), JSON.parse(b)))) {
+    const [soc, , d, own] = JSON.parse(key);
+    const sheds = [...sect.get(key).entries()].sort((a, b) => (+a[0].split("|")[0] || 0) - (+b[0].split("|")[0] || 0))
+      .map(([k, cs]) => [k.split("|")[0], k.split("|").slice(1).join("|"), cs]);
+    const note = d === "THLKR" && !soc ? `/GATE ${gate}` : "", pens = [];
+    let p;
+    const page = () => {
+      p = pen2(doc.addPage([841, 595]), F); pens.push(p);
+      p.t(428.1, 33.4, "HEUNG A LINE (THAILAND) CO.,LTD.", "ab", 12, { center: true });
+      p.t(428.1, 63.5, "TEL.02-0596200", "a", 9, { center: true });
+      for (const [x, y, s, f] of [[43.3, 80.4, "CONTAINER LIST FOR FEEDER", "ab"], [181.4, 80.4, head.vessel, "a"], [341.6, 81.0, "VOYAGE", "ab"],
+          [382.2, 81.0, head.voy, "a"], [436.0, 81.0, "ARRIVAL DATE", "ab"], [509.0, 81.0, head.arrival, "a"], [573.1, 78.6, "Port Of Discharge", "ab"],
+          [651.5, 78.6, head.pod, "a"], [693.5, 78.6, "Port Of Delivery", "ab"], [764.9, 78.6, d, "a"]]) p.t(x, y, s, f, 8.5);
+      if (note) p.t(795.8, 80.0, note, "a", 8.5, { color: RED });              // THLKR /GATE n, every page
+      for (const y of [92.4, 111.9]) p.line(33.0, y, 816.0, y);
+      for (const [x, s] of [[39.8, "CONTAINER NO."], [106.0, "ITEM"], [138.8, "TYPE"], [180.2, "SIZE"], [297.4, "CONSIGNEE"],
+          [437.0, "GROSS WEIGHT"], [520.5, "STATUS"], [571.5, "POL"], [615.5, "REMARK"]]) p.t(x, 104.4, s, "ab");
+      p.t(817.6, 571.5, `ConTaxID: ${soc ? "" : "0993000456955"} PortOfDischarge: ${head.pod} PortOfLoading: __/__/____ PlaceDelivery: ` +
+                        `${d} ShedNumber: 1 RecvControlNo: ${head.recv} Print Date  : ${date}`, "a", 8, { right: true });
+    };
+    const totals = (y, cs, summary = false, many = false) => {
+      const zero = summary ? "0" : "-", up = c => c.remark.toUpperCase();
+      const n = { 20: cs.filter(c => c.size.includes("(20')")), 40: cs.filter(c => c.size.includes("(40')")) };
+      [[0, 20], [17.2, 40]].forEach(([dy, k]) => {
+        const cnt = n[k].length;
+        p.t(134.3, y + dy, `Total Container ${k}' :`, "a", 8, { right: true });
+        p.t(181.6, y + dy, cnt ? String(cnt) : "-", "ab", 8, { right: true });
+        if (cnt) p.t(187.4, y + dy, `(${words(cnt)} CONTAINER(S) ONLY)`, "ab");
+        const ts = n[k].filter(c => up(c).includes("TRANSHIP")).length;
+        const ti = n[k].filter(c => up(c).includes("TRANSIT") && !up(c).includes("TRANSHIP")).length;
+        p.t(421.0, y + dy, `Total Transhipment Con. ${k}' :`); p.t(574.9, y + dy, ts ? String(ts) : zero, "ab", 8, { right: true });
+        p.t(600.8, y + dy, `Total Transit Con. ${k}' :`); p.t(730.8, y + dy, ti ? String(ti) : zero, "ab", 8, { right: true });
+      });
+      const other = cs.length - n[20].length - n[40].length;
+      p.t(134.2, y + 34.3, "Total Container Other :", "a", 8, { right: true });
+      p.t(181.6, y + 34.3, other ? String(other) : "-", "ab", 8, { right: true });
+      if (other || (summary && many)) p.t(187.4, y + 34.3, `(${other ? words(other) + " " : ""}CONTAINER(S) ONLY)`, "ab");
+    };
+    let lab = 0;
+    for (const [shed, name, cs] of sheds) {
+      page();
+      p.t(38.0, 123.2, "SHED NUMBER:", "ab"); p.t(125.2, 123.2, shed);
+      if (name) { const t = thai[name] ||= await thaiImage(doc, name, 7.5); p.image(t.img, 148.4, 123.2 - t.base, t.w, t.h); }
+      let y = 137.2;
+      for (const [i, c] of cs.entries()) {
+        if (y > 553.1) { page(); y = 130.5; }
+        p.t(40.3, y, c.cntr); p.t(113.6, y, String(i + 1), "a", 8, { center: true }); p.t(127.2, y, c.type); p.t(171.9, y, c.size);
+        c.cons.slice(0, 2).forEach((l, k) => p.t(215.7, y + 9.2 * k, l));
+        p.t(489.9, y, f3(c.gw), "a", 8, { right: true }); p.t(493.9, y, "KGM");
+        p.t(518.7, y, c.status); p.t(563.0, y, c.pol); p.t(598.4, y, c.remark);
+        y += 19.8;
+      }
+      lab = y - 19.8 + 30.1;
+      if (lab + 34.3 > 556) { page(); lab = 123.1; }
+      totals(lab, cs);
+    }
+    if (lab + 157.4 > 556) { page(); lab = 80; }
+    p.line(34.8, lab + 46.3, 817.8, lab + 46.3);
+    p.t(50.5, lab + 60.1, "Total Summary", "ab");
+    const all = sheds.flatMap(s => s[2]);
+    totals(lab + 74.1, all, true, sheds.length > 1);
+    p.t(452.1, lab + 139.8, "HEUNG A LINE (THAILAND) CO.,LTD.", "ab", 9); p.t(578.2, lab + 157.4, "As Agents");
+    pens.forEach((q, i) => {
+      q.t(747.2, 35.1, "Page", "a", 9); q.t(785.7, 35.1, String(i + 1), "a", 9, { right: true });
+      q.t(789.2, 35.7, "/", "a", 10); q.t(793.2, 35.1, String(pens.length), "a", 9);
+    });
+    lines.push(`${own || "HEUNG A"} ${d}: ${all.length} ตู้ ${pens.length} หน้า`);
+  }
+  return { bytes: await doc.save(), lines };
+}
+
+// MF-<DELIVERY>.pdf (one Excel MF) + CNTRS.pdf (an Excel CNTRS)
+async function buildSplit(main, summ, sumBytes, gate) {
+  const out = [], date = printDate(), mf = mfFiles(), xlsCn = cnFiles().find(f => !f.lines);
+  if (mf.length === 1 && !mf[0].lines) {
+    const { vessel, pol, pod, blocks } = readBlocks(mf[0].bytes);
+    const rows = summ.filter(x => x.bls && !x.empty);
+    for (const [i, x] of rows.entries()) {
+      const g = x.g, name = g.replace(/^TH(?=[A-Z]{3}$)/, ""), th = /^TH[A-Z]{3}$/.test(g);
+      const info = { vessel, pol, pod, podc: main, date, place: th ? g : main,
+                     note: g === "THLKR" ? `LKB ${gateText(gate)}` : "", podNote: th && g !== main && g !== "THLKR" ? `/ ${name}` : "" };
+      out.push({ name: `MF-${name}.pdf`, bytes: await buildMfGroup(sumBytes, i, info, x.nos.filter(n => blocks[n]), blocks) });
+    }
+  }
+  if (xlsCn) { const c = await buildCntrs(xlsCn.bytes, gate, date); out.push({ name: "CNTRS.pdf", bytes: c.bytes, lines: c.lines }); }
+  return out;
+}
+
 // ---------- run / render ----------
 const staffNow = () => ({ name: $("stName").value.trim(), position: $("stPos").value.trim(), tel: $("stTel").value.trim() });
 
@@ -572,9 +827,11 @@ async function run() {
     const T = { bls: summ.reduce((s, x) => s + x.bls, 0), cntrs: summ.reduce((s, x) => s + x.cntrs, 0),
                 gw: Math.round(summ.reduce((s, x) => s + x.gw, 0) * 1000) / 1000, pkg: summ.reduce((s, x) => s + x.pkg, 0) };
     const vname = vessel.replace(/\s+(\S+)$/, " V.$1");
-    report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs,
-               gate: (PLACE.THLKR = `LATKRABANG ${gateText($("gate").value)}`),
-               edi: await buildSumEdi(vessel, port, summ, T, soc, staffNow()), sum: await buildSummary(vname, port, main, summ.filter(x => !x.empty)) };
+    const gate = $("gate").value;
+    PLACE.THLKR = `LATKRABANG ${gateText(gate)}`;
+    const sum = await buildSummary(vname, port, main, summ.filter(x => !x.empty));
+    report = { vessel: vname, port, summ, soc, T, gt, nosize, notInCntrs, sum,
+               edi: await buildSumEdi(vessel, port, summ, T, soc, staffNow()), split: await buildSplit(main, summ, sum, gate) };
     render();
   } catch (err) {
     report = null; $("result").classList.add("hidden");
@@ -611,8 +868,10 @@ async function render() {
   if (nosize.length) warn.push(`ตู้ที่ไม่ทราบขนาด (ไม่ได้นับใน 20'/40'): ${nosize.join(", ")}`);
   $("msg").textContent = warn.join("\n");
   $("result").classList.remove("hidden");
+  $("dlFiles").innerHTML = docs().map((d, i) => `<button class="ghost" data-d="${i}">${escapeHtml(d.name)}</button>`).join("");
   const box = $("preview"); box.innerHTML = ""; pages = [];
-  for (const [label, bytes] of [["SUM-EDI", report.edi], ["SUMMARY", report.sum]]) {
+  for (const { name, bytes } of docs()) {
+    const label = name.replace(/\.pdf$/, "");
     const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
     for (let n = 1; n <= pdf.numPages; n++) {
       const page = await pdf.getPage(n), vp = page.getViewport({ scale: 1.2 });
@@ -746,9 +1005,10 @@ function dirty() {
   st.textContent = report ? "มีการแก้ไข — กด Process เพื่อทำเอกสารใหม่" : "พร้อมแล้ว — กด Process";
 }
 $("tbody").onclick = e => { const tr = e.target.closest("tr.g"); if (tr) $("bl" + tr.dataset.i)?.classList.toggle("hidden"); };
-$("dlEdi").onclick = () => save(report.edi, "SUM-EDI.pdf");
-$("dlSum").onclick = () => save(report.sum, "SUMMARY.pdf");
-$("download").onclick = async () => { save(report.edi, "SUM-EDI.pdf"); await new Promise(r => setTimeout(r, 600)); save(report.sum, "SUMMARY.pdf"); };
+// every document of the last Process: SUM-EDI, SUMMARY, MF-<DELIVERY> …, CNTRS
+const docs = () => report ? [{ name: "SUM-EDI.pdf", bytes: report.edi }, { name: "SUMMARY.pdf", bytes: report.sum }, ...report.split] : [];
+$("dlFiles").onclick = e => { const b = e.target.closest("button[data-d]"); if (b) { const d = docs()[+b.dataset.d]; save(d.bytes, d.name); } };
+$("download").onclick = async () => { for (const d of docs()) { save(d.bytes, d.name); await new Promise(r => setTimeout(r, 600)); } };
 loadStaff(); showSig();
 </script>
 </body>
