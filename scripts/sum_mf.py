@@ -23,7 +23,15 @@ num = lambda t: float(t.replace(",", ""))
 COUNTRY = {"MM": "MYANMAR", "LA": "LAOS", "MY": "MALAYSIA", "KH": "CAMBODIA", "VN": "VIETNAM", "CN": "CHINA"}
 # DELIVERY: "Port Of Delivery" of the CNTRS page; when that is the port of discharge, the shed tells the terminal
 SHED_DELIVERY = {"0332": "THLKR", "0110": "THBMT", "0302": "THSCT", "0122": "THBKK", "0145": "THBKK"}
-PORTS = {"LAEM CHABANG": "THLCH", "BANGKOK": "THBKK"}  # port of discharge -> delivery code
+PORTS = {"LAEM CHABANG": "THLCH", "BANGKOK": "THBKK", "UNITHAI CONTAINER TERMINAL": "THUCT"}  # port of discharge -> code
+# SUMMARY of a BANGKOK / UNITHAI discharge: its own one-line form (sample B.pdf / U.pdf), port written short
+PORT_SHORT = {"THBKK": "BANGKOK", "THUCT": "UNITHAI"}
+
+
+def port_name(port):
+    """the MF PDF prints UNITHAI CONTAINER / TERMINAL on two lines -> UNITHAI CONTAINER TERMINAL"""
+    port = " ".join(port.split()).upper()
+    return "UNITHAI CONTAINER TERMINAL" if port.startswith("UNITHAI") else port
 ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
          "TRANSHIPMENT", "EMPTY"]
 LABEL = {"THBKK": "BKK (PAT)"}  # DELIVERY shown in SUM-EDI; others without TH: THLCH -> LCH
@@ -316,6 +324,7 @@ FONTFILES = {"tr": TIMES, "tb": TIMESB, "th": r"C:\Windows\Fonts\tahoma.ttf", "t
 HALRE = re.compile(r"HEUNG[\s-]*A\b", re.I)
 AGENT1 = "HEUNG A LINE CO., LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD."
 AGENT2 = "HEUNG A LINE CO.,LTD C/O HEUNG-A SHIPPING (THAILAND) CO.,LTD."
+AGENT_BKK = "HEUNG A LINE CO.,LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD."   # as in the BANGKOK / UNITHAI form
 
 
 def text(pg, x, y, s, size=8, bold=False, right=False, underline=False, font=None, maxw=0):
@@ -351,6 +360,24 @@ def summary_page(doc, vessel_name, port, agent, left, place, gw, pkg, double=Fal
     text(pg, 75, 424, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 7.5)
 
 
+def summary_page_port(doc, vessel_name, port, gw, pkg):
+    """BANGKOK / UNITHAI form: DISCHARGING AT <port>, FOR MV., the agent line with its figures, GRAND TOTAL"""
+    pg = doc.new_page(width=842, height=595)
+    text(pg, 189.4, 83.9, "SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT", 11.4, bold=True)
+    text(pg, 554.8, 83.9, port, 11.4, bold=True)
+    text(pg, 73.2, 122.3, "FOR  MV.", 11.4, bold=True); text(pg, 186.6, 122.3, vessel_name, 11.4, bold=True, maxw=600)
+    pg.draw_line((73.2, 141), (714, 141), width=0.6, dashes="[1 1.5] 0")
+    text(pg, 73.1, 261.5, AGENT_BKK, 10, underline=True)
+    for y in (261.5, 298.6):
+        text(pg, 547.2, y, f"{gw:,.3f}" if gw else "-", 11.3, right=True); text(pg, 554.6, y, "KGM", 10)
+        text(pg, 683.6, y, f"{pkg:,}" if pkg else "-", 11.3, right=True); text(pg, 691.0, y, "PACKAGES", 10)
+    text(pg, 341.5, 298.6, "GRAND TOTAL", 10)
+    for y in (287.6, 306.6, 308.8): pg.draw_line((450.8, y), (765.7, y), width=0.7)   # line above, double below
+    if os.path.exists(SIGNATURE): pg.insert_image(pymupdf.Rect(96.2, 385.7, 122.6, 427.8), filename=SIGNATURE)
+    pg.draw_line((73.1, 432.6), (703.1, 432.6), width=0.6, dashes="[1 1.5] 0")
+    text(pg, 73.1, 451.8, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 10)
+
+
 def gate_text(gate):
     """--gate -> text after LATKRABANG: "2" -> (ESCO GATE 2), "8" -> (TIFFA GATE 8)"""
     return GATES.get(str(gate).strip(), GATES["2"])
@@ -362,7 +389,8 @@ def write_summary(path, vessel_name, port, main, summ, gate=""):
     doc = pymupdf.open()
     for x in [x for x in summ if x["bls"]]:
         g = x["g"]
-        if g == main: summary_page(doc, vessel_name, port, AGENT1, port, "", x["gw"], x["pkg"], double=True)
+        if g == main and main in PORT_SHORT: summary_page_port(doc, vessel_name, PORT_SHORT[main], x["gw"], x["pkg"])
+        elif g == main: summary_page(doc, vessel_name, port, AGENT1, port, "", x["gw"], x["pkg"], double=True)
         elif g in TRANSIT:
             summary_page(doc, vessel_name, port, AGENT2, "*CARGO INTRANSIT TO",
                          f"{g}{'  ' if g == 'LAOS' else ''}   P.D.R.  VIA  {port}", x["gw"], x["pkg"])
@@ -455,7 +483,7 @@ def main():
     if not bls: sys.exit(f"!! No B/L (HASL...) in {', '.join(mf)}")
     if not any(b["shed"] for b in bls.values()) and not cntrs:
         sys.exit("!! The MF has no 1) SHED NO. / 2) country / 3) CARGO MOVEMENT column - give the CNTRS file too, or use the full MF export")
-    port = port or "LAEM CHABANG"
+    port = port_name(port or "LAEM CHABANG")
     main_code = PORTS.get(port, "TH" + port[:3])
     cn_list = read_cntrs_all(cntrs, main_code)
     summ, soc, nosize, not_in_cntrs = summarize(bls, main_code, cn_list)

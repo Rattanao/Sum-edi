@@ -165,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-10-31e</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-01a</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -175,7 +175,11 @@ const RE_CN = /\b[A-Z]{4}\d{7}\b/g;
 const COUNTRY = { MM: "MYANMAR", LA: "LAOS", MY: "MALAYSIA", KH: "CAMBODIA", VN: "VIETNAM", CN: "CHINA" };
 // DELIVERY: "Port Of Delivery" of the CNTRS page; when that is the port of discharge, the shed tells the terminal
 const SHED_DELIVERY = { "0332": "THLKR", "0110": "THBMT", "0302": "THSCT", "0122": "THBKK", "0145": "THBKK" };
-const PORTS = { "LAEM CHABANG": "THLCH", "BANGKOK": "THBKK" };   // port of discharge -> delivery code
+const PORTS = { "LAEM CHABANG": "THLCH", "BANGKOK": "THBKK", "UNITHAI CONTAINER TERMINAL": "THUCT" };   // port of discharge -> code
+// SUMMARY of a BANGKOK / UNITHAI discharge: its own one-line form (sample B.pdf / U.pdf), port written short
+const PORT_SHORT = { THBKK: "BANGKOK", THUCT: "UNITHAI" };
+// the MF PDF prints UNITHAI CONTAINER / TERMINAL on two lines -> UNITHAI CONTAINER TERMINAL
+const portName = p => { p = p.split(/\s+/).filter(Boolean).join(" ").toUpperCase(); return p.startsWith("UNITHAI") ? "UNITHAI CONTAINER TERMINAL" : p; };
 const ORDER = ["THLCH", "THLKR", "THBMT", "THSCT", "THBKK", "MYANMAR", "LAOS", "MALAYSIA", "CHINA", "CAMBODIA",
                "TRANSHIPMENT", "EMPTY"];
 // DELIVERY shown without the country prefix: THLCH -> LCH, THLKR -> LKR (TRANSHIPMENT, MYANMAR … unchanged)
@@ -194,6 +198,7 @@ const SOC_STOP = new Set(["AGENCIES", "AGENCY", "INTERNATIONAL", "(THAILAND)", "
 const RE_HAL = /HEUNG[\s-]*A\b/i;
 const AGENT1 = "HEUNG A LINE CO., LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD.";
 const AGENT2 = "HEUNG A LINE CO.,LTD C/O HEUNG-A SHIPPING (THAILAND) CO.,LTD.";
+const AGENT_BKK = "HEUNG A LINE CO.,LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD.";   // as in the BANGKOK / UNITHAI form
 const SIG_KEY = "sum-edi-signature", STAFF_KEY = "sum-edi-staff";
 const STAFF = { name: "MISS RATTANA", position: "Document Inbound", tel: "02-059 6253 (Direct)" };
 const $ = id => document.getElementById(id);
@@ -326,7 +331,7 @@ function readMfAll(items) {
     all.vessel ||= r.vessel; all.port ||= r.port; Object.assign(all.bls, r.bls);
     if (r.gt) all.gt = { gw: Math.round(((all.gt?.gw || 0) + r.gt.gw) * 1000) / 1000, pkg: (all.gt?.pkg || 0) + r.gt.pkg };
   }
-  all.port ||= "LAEM CHABANG";
+  all.port = portName(all.port || "LAEM CHABANG");
   return all;
 }
 
@@ -483,10 +488,28 @@ async function buildSummary(vessel, port, main, summ) {
     p.line(75, 404, 690, 404, .6, true);
     p.text(75, 424, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 7.5);
   };
+  // BANGKOK / UNITHAI form: DISCHARGING AT <port>, FOR MV., the agent line with its figures, GRAND TOTAL
+  const pagePort = (short, gw, pkg) => {
+    const p = pen(doc.addPage([842, 595]), fonts), B = { font: fonts.b };
+    p.text(189.4, 83.9, "SUMMARY OF INWARD CARGO MANIFEST DISCHARGING AT", 11.4, B); p.text(554.8, 83.9, short, 11.4, B);
+    p.text(73.2, 122.3, "FOR  MV.", 11.4, B); p.text(186.6, 122.3, vessel, 11.4, { ...B, max: 600 });
+    p.line(73.2, 141, 714, 141, .6, true);
+    p.text(73.1, 261.5, AGENT_BKK, 10, { underline: true });
+    for (const y of [261.5, 298.6]) {
+      p.text(547.2, y, gw ? f3(gw) : "-", 11.3, { right: true }); p.text(554.6, y, "KGM", 10);
+      p.text(683.6, y, pkg ? f0(pkg) : "-", 11.3, { right: true }); p.text(691.0, y, "PACKAGES", 10);
+    }
+    p.text(341.5, 298.6, "GRAND TOTAL", 10);
+    for (const y of [287.6, 306.6, 308.8]) p.line(450.8, y, 765.7, y);       // line above, double line below
+    if (sig) { const h = 42.1, w = Math.min(60, h * sig.width / sig.height); p.image(sig, 96.2, 385.7, w, h); }
+    p.line(73.1, 432.6, 703.1, 432.6, .6, true);
+    p.text(73.1, 451.8, "FOR HEUNG A LINE (THAILAND) CO.,LTD.", 10);
+  };
   // one page per DELIVERY row with B/L, in the SUM-EDI order
   for (const x of summ.filter(x => x.bls)) {
     const g = x.g;
-    if (g === main) page1(AGENT1, port, "", x.gw, x.pkg, true);
+    if (g === main && PORT_SHORT[main]) pagePort(PORT_SHORT[main], x.gw, x.pkg);
+    else if (g === main) page1(AGENT1, port, "", x.gw, x.pkg, true);
     else if (TRANSIT.has(g)) page1(AGENT2, "*CARGO INTRANSIT TO", `${g}${g === "LAOS" ? "  " : ""}   P.D.R.  VIA  ${port}`, x.gw, x.pkg, false);
     else page1(AGENT1, `${port} /`, PLACE[g] || g, x.gw, x.pkg, true);
   }
