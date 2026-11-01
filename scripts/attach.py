@@ -77,6 +77,10 @@ def read_one(path):
         m = RE_VESSEL.search(t)
         if m and m.group(1).strip(): vessel = m.group(1).strip()
         pages.append(dict(page=i, vessel=vessel, bl=bl or nb, src="content" if bl else "name" if nb else ""))
+    nxt = None                                  # pages before the first BL NO. (header sheet at the end) take the next one
+    for p in reversed(pages):
+        if p["src"] == "content": nxt = p
+        elif not p["src"] and nxt: p.update(bl=nxt["bl"], vessel=nxt["vessel"], src="content")
     return doc, pages
 
 

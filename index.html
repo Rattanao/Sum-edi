@@ -165,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-01a</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-01b</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -227,7 +227,8 @@ async function pdfLines(bytes) { return (await pdfPages(bytes)).flat(); }
 async function pdfPages(bytes) {
   const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise, out = [];
   for (let n = 1; n <= pdf.numPages; n++) {
-    const sp = (await (await pdf.getPage(n)).getTextContent()).items.filter(i => i.str.trim())
+    const page = await pdf.getPage(n), H = page.view[3] - page.view[1];
+    const sp = (await page.getTextContent()).items.filter(i => i.str.trim())
       .map(i => ({ y: -i.transform[5], big: Math.hypot(i.transform[2], i.transform[3]) >= 11, x: i.transform[4], t: i.str.trim() }))
       .sort((a, b) => a.y - b.y || a.x - b.x);
     const rows = [];
@@ -235,7 +236,9 @@ async function pdfPages(bytes) {
       const r = rows.slice(-4).find(r => Math.abs(r.y - w.y) <= 2 && r.big === w.big);
       if (r) r.w.push(w); else rows.push({ y: w.y, big: w.big, w: [w] });
     }
-    out.push(rows.map(r => r.w.sort((a, b) => a.x - b.x).map(w => w.t).join(" ")));
+    const lines = rows.map(r => r.w.sort((a, b) => a.x - b.x).map(w => w.t).join(" "));
+    lines.tops = rows.map(r => H + r.y);                   // baseline from the top of the page
+    out.push(lines);
   }
   return out;
 }
@@ -833,7 +836,59 @@ async function buildCntrs(bytes, gate, date) {
   return { bytes: await doc.save(), lines };
 }
 
-// MF-<DELIVERY>.pdf (one Excel MF) + CNTRS.pdf (an Excel CNTRS)
+// MF printed to PDF -> [[B/L, first page, last page]] in order (same as split_docs.pdf_bl_pages): a block ends on the
+// page where the next B/L (or PORT TOTAL / GRAND TOTAL) starts when that page has rows above it, else on the page before
+function pdfBlPages(item) {
+  const marks = [], head = [];
+  item.pages.forEach((lines, i) => {
+    let h = 106;                                           // bottom of the column header, the data starts below
+    lines.forEach((l, k) => {
+      const y = lines.tops[k], m = l.match(/^(HASL[A-Z0-9]{10,14})\b/);
+      if (m) marks.push([i, y, m[1]]);
+      else if (/^(PORT|GRAND) TOTAL/.test(l)) marks.push([i, y, ""]);
+      if (/NOTIFY PARTY|MEASUREMENT \(MTQ\)|PREPAID|COLLECT|CONTAINER NO\./.test(l)) h = Math.max(h, y + 3);
+    });
+    head.push(h);
+  });
+  marks.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const out = [];
+  marks.forEach(([i, , no], k) => {
+    if (!no) return;
+    if (k + 1 === marks.length) { out.push([no, i, item.pages.length - 1]); return; }
+    const [j, y2] = marks[k + 1];
+    out.push([no, i, j === i ? i : item.pages[j].tops.some(t => t > head[j] && t < y2 - 2) ? j : j - 1]);
+  });
+  return out;
+}
+
+// MF PDFs -> MF-<DELIVERY>.pdf: the SUMMARY page, the MF pages of that row's B/L (a whole file when all its B/L are in
+// the row, e.g. per-port MF-LCH.pdf), ATTACHED pages after the page where their B/L ends
+async function buildPdfGroups(summ, sumBytes, att) {
+  const out = [], rows = summ.filter(x => x.bls && !x.empty), sum = await PDFLib.PDFDocument.load(sumBytes);
+  const mf = [];
+  for (const it of mfFiles()) mf.push({ src: await PDFLib.PDFDocument.load(it.bytes, { ignoreEncryption: true }), bl: pdfBlPages(it), n: it.pages.length });
+  for (const [i, x] of rows.entries()) {
+    const nos = new Set(x.nos), doc = await PDFLib.PDFDocument.create();
+    doc.addPage((await doc.copyPages(sum, [i]))[0]);
+    let nMf = 0, nAtt = 0;
+    for (const f of mf) {
+      const mine = f.bl.filter(b => nos.has(b[0]));
+      if (!mine.length) continue;
+      const whole = f.bl.every(b => nos.has(b[0]));
+      const pages = whole ? [...Array(f.n).keys()] : [...new Set(mine.flatMap(([, s, e]) => Array.from({ length: e - s + 1 }, (_, k) => s + k)))].sort((a, b) => a - b);
+      const ends = {};
+      for (const [no, , e] of mine) (ends[e] ||= []).push(no);
+      for (const p of pages) {
+        doc.addPage((await doc.copyPages(f.src, [p]))[0]); nMf++;
+        for (const no of ends[p] || []) for (const [src, ai] of att[no] || []) { doc.addPage((await doc.copyPages(src, [ai]))[0]); nAtt++; }
+      }
+    }
+    out.push({ name: `MF-${x.g.replace(/^TH(?=[A-Z]{3}$)/, "")}.pdf`, bytes: await doc.save(), nAtt });
+  }
+  return out;
+}
+
+// MF-<DELIVERY>.pdf (one Excel MF, or MF PDFs) + CNTRS.pdf (an Excel CNTRS)
 async function buildSplit(main, summ, sumBytes, gate, att) {
   const out = [], date = printDate(), mf = mfFiles(), xlsCn = cnFiles().find(f => !f.lines);
   if (mf.length === 1 && !mf[0].lines) {
@@ -847,6 +902,7 @@ async function buildSplit(main, summ, sumBytes, gate, att) {
       out.push({ name: `MF-${name}.pdf`, bytes: r.bytes, nAtt: r.nAtt });
     }
   }
+  else if (mf.length && mf.every(f => f.lines)) out.push(...await buildPdfGroups(summ, sumBytes, att));
   if (xlsCn) { const c = await buildCntrs(xlsCn.bytes, gate, date); out.push({ name: "CNTRS.pdf", bytes: c.bytes, lines: c.lines }); }
   return out;
 }
@@ -902,8 +958,13 @@ async function readAttached(item) {
     const t = texts[i] || "";
     if ((m = t.match(RE_BLNO))) bl = m[1];
     if ((m = t.match(RE_VESSEL)) && m[1].trim()) vessel = m[1].trim();
-    return { page: i, vessel, bl: bl || nameBl };
+    return { page: i, vessel, bl: bl || nameBl, src: bl ? "content" : nameBl ? "name" : "" };
   });
+  let next = null;                                         // pages before the first BL NO. (header sheet at the end)
+  for (const p of [...pages].reverse()) {
+    if (p.src === "content") next = p;
+    else if (!p.src && next) Object.assign(p, { bl: next.bl, vessel: next.vessel, src: "content" });
+  }
   return { doc, pages };
 }
 

@@ -4,7 +4,7 @@
   from the shed goes on every page: THLKR "LKB (ESCO GATE 2)" over the port, other terminals "LAEM CHABANG / BMT".
 - CNTRS.pdf: a CNTRS .xls (which prints every shed under Port Of Delivery THLCH) printed again as one CONTAINER LIST
   per DELIVERY (shed 0332 -> THLKR + red "/GATE n", 0110 -> THBMT, 0302 -> THSCT, ...) and one per SOC owner.
-Only made from Excel inputs (MF / CNTRS PDFs are already the system's per-delivery prints).
+MF PDFs: MF-<DELIVERY>.pdf = SUMMARY page + the MF PDF pages of that row + ATTACHED pages; CNTRS.pdf only from Excel.
 """
 import os, re, datetime
 import xlrd, pymupdf
@@ -282,6 +282,61 @@ def write_cntrs(path, cn_file, gate, date):
     return out
 
 
+def pdf_bl_pages(doc):
+    """MF printed to PDF -> [(B/L, first page, last page)] in order. A block ends on the page where the next B/L
+    (or PORT TOTAL / GRAND TOTAL) starts when that page has rows above it, else on the page before."""
+    marks, tops, head = [], [], []
+    for i, pg in enumerate(doc):
+        t_page, h = [], 106.0                  # h: bottom of the column header (its last labels), the data starts below
+        for b in pg.get_text("dict")["blocks"]:
+            for l in b.get("lines", []):
+                for s in l["spans"]:
+                    t, y = s["text"].strip(), s["origin"][1]
+                    if not t: continue
+                    t_page.append(y)
+                    if S.BLRE.match(t): marks.append((i, y, t))
+                    elif t.startswith(("PORT TOTAL", "GRAND TOTAL")): marks.append((i, y, ""))
+                    elif re.search(r"NOTIFY PARTY|MEASUREMENT \(MTQ\)|PREPAID|COLLECT|CONTAINER NO\.", t): h = max(h, y + 3)
+        tops.append(t_page); head.append(h)
+    marks.sort()
+    out = []
+    for k, (i, y, no) in enumerate(marks):
+        if not no: continue
+        if k + 1 == len(marks): out.append((no, i, len(doc) - 1)); continue
+        j, y2, _ = marks[k + 1]
+        end = i if j == i else j if any(head[j] < t < y2 - 2 for t in tops[j]) else j - 1
+        out.append((no, i, end))
+    return out
+
+
+def write_pdf_groups(out, mf, summ, summary_pdf, att):
+    """MF PDFs -> MF-<DELIVERY>.pdf: the SUMMARY page, the MF pages of that row's B/L (a whole file when all its B/L
+    are in the row, e.g. per-port MF-LCH.pdf), ATTACHED pages after the page where their B/L ends"""
+    lines, rows = [], [x for x in summ if x["bls"] and not x.get("empty")]
+    sdoc = pymupdf.open(summary_pdf)
+    files = [(d, pdf_bl_pages(d)) for d in (pymupdf.open(f) for f in mf)]
+    for i, x in enumerate(rows):
+        nos, name = set(x["nos"]), re.sub(r"^TH(?=[A-Z]{3}$)", "", x["g"])
+        doc = pymupdf.open(); doc.insert_pdf(sdoc, from_page=i, to_page=i)
+        n_mf = n_att = 0
+        for d, bl_pages in files:
+            mine = [b for b in bl_pages if b[0] in nos]
+            if not mine: continue
+            whole = all(b[0] in nos for b in bl_pages)
+            pages = range(len(d)) if whole else sorted({p for _, s, e in mine for p in range(s, e + 1)})
+            ends = {}
+            for no, s, e in mine: ends.setdefault(e, []).append(no)
+            for p in pages:
+                doc.insert_pdf(d, from_page=p, to_page=p); n_mf += 1
+                for no in ends.get(p, []):
+                    for adoc, ai in (att or {}).get(no, []): doc.insert_pdf(adoc, from_page=ai, to_page=ai); n_att += 1
+        doc.save(os.path.join(out, f"MF-{name}.pdf"), garbage=3, deflate=True)
+        lines.append(f"MF-{name}.pdf  SUMMARY + {n_mf} MF pages (from PDF){f' + {n_att} ATTACHED' if n_att else ''}  "
+                     f"{x['bls']} B/L  {x['pkg']:,} PKGS  {x['gw']:,.3f} KGM")
+    sdoc.close()
+    return lines
+
+
 def write_all(out, mf, cn, main_code, summ, summary_pdf, gate, att=None):
     """MF-<DELIVERY>.pdf (from one Excel MF; covers = the pages of SUMMARY.pdf, one per row with B/L in summ order)
     and CNTRS.pdf (from an Excel CNTRS) -> lines to print"""
@@ -305,6 +360,8 @@ def write_all(out, mf, cn, main_code, summ, summary_pdf, gate, att=None):
             lines.append(f"MF-{name}.pdf  SUMMARY + {n} pages{f' + {na} ATTACHED' if na else ''}  {len(nos)} B/L  "
                          f"{pkg:,} PKGS  {gw:,.3f} KGM  {mtq:,.3f} MTQ")
         sdoc.close()
+    elif mf and all(f.lower().endswith(".pdf") for f in mf):
+        lines += write_pdf_groups(out, mf, summ, summary_pdf, att)
     cx = [f for f in cn if re.search(r"\.xlsx?$", f, re.I)]
     if cx:
         for line in write_cntrs(os.path.join(out, "CNTRS.pdf"), cx[0], gate, date): lines.append(f"CNTRS.pdf  {line}")
