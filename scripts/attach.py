@@ -9,9 +9,9 @@ import xlrd, pymupdf
 
 import sum_mf as S
 
-RE_BLNO = re.compile(r"\bB\s*/?\s*L\s*NO\.?\s*:?\s*(HASL[A-Z0-9]{10,14})")
+RE_BLNO = re.compile(r"\bB\s*/?\s*L\s*NO\.?\s*:?\s*(HASL[A-Z0-9]{10,16})")
 RE_VESSEL = re.compile(r"\bVESSEL\b(?:\s*(?:NAME|&\s*VOYAGE))?\s*:?\s*([^\n]+)")
-RE_HASL = re.compile(r"HASL[A-Z0-9]{10,14}", re.I)
+RE_HASL = re.compile(r"HASL[A-Z0-9]{10,16}", re.I)
 PICTURE = (".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff")
 
 

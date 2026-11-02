@@ -17,7 +17,7 @@ ASSETS = os.path.join(HERE, "..", "assets")
 LETTERHEAD = os.path.join(ASSETS, "letterhead.jpg")
 SIGNATURE = os.path.join(ASSETS, "signature.png")  # local only, not in git
 
-BLRE = re.compile(r"^HASL[A-Z0-9]{10,14}$")
+BLRE = re.compile(r"^HASL[A-Z0-9]{10,16}$")  # up to 3-letter house suffix: HASLC01261001955ZZA
 CNRE = re.compile(r"\b([A-Z]{4}\d{7})\b")
 num = lambda t: float(t.replace(",", ""))
 COUNTRY = {"MM": "MYANMAR", "LA": "LAOS", "MY": "MALAYSIA", "KH": "CAMBODIA", "VN": "VIETNAM", "CN": "CHINA"}
@@ -130,7 +130,7 @@ def read_mf_pdf(path):
             if m: total[0] = num(m.group(1))
             m = re.search(r"TOTAL PACK:\s*([\d,]+)", l)
             if m: total[1] = int(num(m.group(1))); in_gt = False
-        m = re.match(r"^(HASL[A-Z0-9]{10,14})\b", l)
+        m = re.match(r"^(HASL[A-Z0-9]{10,16})\b", l)
         if m:
             cur = m.group(1); bls[cur] = b = new_bl()
             m = re.search(r"\b(\d[\d,]*)\s+[A-Z]{2}\s*\(", l)

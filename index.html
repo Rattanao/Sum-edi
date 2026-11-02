@@ -165,12 +165,12 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-01b</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-02a</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 // same rules as scripts/sum_mf.py
-const RE_BL = /^HASL[A-Z0-9]{10,14}$/;
+const RE_BL = /^HASL[A-Z0-9]{10,16}$/;
 const RE_CN = /\b[A-Z]{4}\d{7}\b/g;
 const COUNTRY = { MM: "MYANMAR", LA: "LAOS", MY: "MALAYSIA", KH: "CAMBODIA", VN: "VIETNAM", CN: "CHINA" };
 // DELIVERY: "Port Of Delivery" of the CNTRS page; when that is the port of discharge, the shed tells the terminal
@@ -297,7 +297,7 @@ function readMfPdf(lines) {
       if ((m = l.match(/GROSSWEIGHT:\s*([\d,.]+)/))) gt.gw = num(m[1]);
       if ((m = l.match(/TOTAL PACK:\s*([\d,]+)/))) { gt.pkg = num(m[1]); inGt = false; }
     }
-    if ((m = l.match(/^(HASL[A-Z0-9]{10,14})\b/))) {
+    if ((m = l.match(/^(HASL[A-Z0-9]{10,16})\b/))) {
       cur = m[1]; bls[cur] = newBl();
       if ((m = l.match(/\b(\d[\d,]*)\s+[A-Z]{2}\s*\(/))) bls[cur].pkg = num(m[1]);
     }
@@ -843,7 +843,7 @@ function pdfBlPages(item) {
   item.pages.forEach((lines, i) => {
     let h = 106;                                           // bottom of the column header, the data starts below
     lines.forEach((l, k) => {
-      const y = lines.tops[k], m = l.match(/^(HASL[A-Z0-9]{10,14})\b/);
+      const y = lines.tops[k], m = l.match(/^(HASL[A-Z0-9]{10,16})\b/);
       if (m) marks.push([i, y, m[1]]);
       else if (/^(PORT|GRAND) TOTAL/.test(l)) marks.push([i, y, ""]);
       if (/NOTIFY PARTY|MEASUREMENT \(MTQ\)|PREPAID|COLLECT|CONTAINER NO\./.test(l)) h = Math.max(h, y + 3);
@@ -912,7 +912,7 @@ async function buildSplit(main, summ, sumBytes, gate, att) {
 // ---------- ATTACHED sheets — same as scripts/attach.py ----------
 // any other file (PDF, Excel, picture, any name): B/L from "BL NO. HASL..." + "VESSEL ..." in the content, page by page
 // for a PDF (a page without BL NO. continues the page before), else from a HASL... number in the file name
-const RE_BLNO = /\bB\s*\/?\s*L\s*NO\.?\s*:?\s*(HASL[A-Z0-9]{10,14})/;
+const RE_BLNO = /\bB\s*\/?\s*L\s*NO\.?\s*:?\s*(HASL[A-Z0-9]{10,16})/;
 const RE_VESSEL = /\bVESSEL\b(?:\s*(?:NAME|&\s*VOYAGE))?\s*:?\s*([^\n]+)/;
 const sameVessel = (a, b) => { const n = s => s.toUpperCase().replace(/\bV\.?\s*(?=\d)/g, "").replace(/[^A-Z0-9]/g, ""); return n(a) === n(b); };
 const attFiles = () => files.filter(f => f.kind === "attached");
@@ -929,7 +929,7 @@ function workbookLines(bytes) {
 
 // one ATTACHED file -> { doc (PDFDocument of its pages) | null, pages: [{page, vessel, bl}] }
 async function readAttached(item) {
-  const low = item.name.toLowerCase(), nameBl = (item.name.match(/HASL[A-Z0-9]{10,14}/i) || [""])[0].toUpperCase();
+  const low = item.name.toLowerCase(), nameBl = (item.name.match(/HASL[A-Z0-9]{10,16}/i) || [""])[0].toUpperCase();
   let doc = null, texts = [];
   try {
     if (low.endsWith(".pdf")) {
