@@ -165,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-02a</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-05a</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -627,24 +627,25 @@ function pen2(page, F) {
 function readBlocks(bytes) {
   const { rg, cell } = sheetCells(bytes);
   const HEAD = ["CARGO MANIFEST", "VESSEL & VOYAGE", "PORT OF LOADING", "BILL OF LANDING NO.", "1) SHIPPER", "3) NOTIFY PARTY"];
-  const blocks = {}; let cur = null, vessel = "", pol = "", pod = "";
+  const blocks = {}, pols = {}; let cur = null, vessel = "", pol = "", pod = "";   // pols: B/L -> port of loading
   for (let r = rg.s.r; r <= rg.e.r; r++) {
     const v = Array.from({ length: 23 }, (_, c) => cell(r, c).replace(/\t/g, " ").trim());
     const line = v.filter(Boolean).join(" ");
     if (v[0] === "VESSEL & VOYAGE") vessel ||= v[2];
-    if (v[0] === "PORT OF LOADING") { pol ||= v[2]; pod ||= v[8]; }
+    if (v[0] === "PORT OF LOADING") { pol = v[2]; pod ||= v[8]; }
     if (line.includes("PORT TOTAL") || line.includes("GRAND TOTAL")) { cur = null; continue; }
     if (HEAD.includes(v[0]) || v[10] === "CARGO MANIFEST" || v[0].startsWith("PortOfDischarge")) continue;
-    if (RE_BL.test(v[0])) { cur = v[0]; blocks[cur] = []; }
+    if (RE_BL.test(v[0])) { cur = v[0]; blocks[cur] = []; pols[cur] = pol; }
     if (!cur) continue;
     const row = [v[0], v[5] || v[6], v[10], v[16]];
     if (row.some(Boolean)) blocks[cur].push(row);
   }
-  return { vessel, pol, pod, blocks };
+  return { vessel, pols, pod, blocks };
 }
 
 // one MF-<DELIVERY>.pdf: the SUMMARY page of the row as the cover, then the CARGO MANIFEST pages
-async function buildMfGroup(sumBytes, idx, info, nos, blocks, att = {}) {
+// one section per port of loading as in the MF (new page, its POL in the header, its own PORT TOTAL), then GRAND TOTAL
+async function buildMfGroup(sumBytes, idx, info, nos, blocks, att = {}, pols = {}) {
   const doc = await PDFLib.PDFDocument.create(), F = await stdFonts(doc);
   const [cover] = await doc.copyPages(await PDFLib.PDFDocument.load(sumBytes), [idx]); doc.addPage(cover);
   const DASH = [1.5, .5, .5, .5], PITCH = 16.2, GAP = 18.4, BOTTOM = 552;
@@ -683,9 +684,16 @@ async function buildMfGroup(sumBytes, idx, info, nos, blocks, att = {}) {
       p.t(276.0, top + dy, k, "a", 8, { right: true }); p.t(279.5, top + dy, val);
     }
   };
-  let y = newPage(), pkg = 0, gw = 0, mtq = 0;
-  const ends = [];                                         // [B/L, MF page where it ends]
+  const ends = [], sections = [], tot = [0, 0, 0];         // ends: [B/L, MF page where it ends]
   for (const no of nos) {
+    const pl = pols[no] ?? info.pol;
+    if (!sections.length || sections.at(-1)[0] !== pl) sections.push([pl, []]);
+    sections.at(-1)[1].push(no);
+  }
+  for (const [pl, sec] of sections) {
+  info.pol = pl;
+  let y = newPage(), pkg = 0, gw = 0, mtq = 0;
+  for (const no of sec) {
     const rows = blocks[no]; let m;
     if ((m = rows[0][2].match(/^([\d,]+)\s/))) pkg += num(m[1]);
     for (const r of rows) if ((m = r[3].match(/^([\d,.]+)\s*(KGM|MTQ)/))) { if (m[2] === "KGM") gw += num(m[1]); else mtq += num(m[1]); }
@@ -701,9 +709,10 @@ async function buildMfGroup(sumBytes, idx, info, nos, blocks, att = {}) {
   }
   let last = y - GAP;
   if (last + 57.5 > BOTTOM + 8) { newPage(); last = 116.7 - 7.4; }
-  gw = Math.round(gw * 1000) / 1000; mtq = Math.round(mtq * 1000) / 1000;
-  total(last + 7.4, "PORT TOTAL:", .878, pkg, gw, mtq);
-  newPage(); total(105.8, "GRAND TOTAL:", .753, pkg, gw, mtq);
+  total(last + 7.4, "PORT TOTAL:", .878, pkg, Math.round(gw * 1000) / 1000, Math.round(mtq * 1000) / 1000);
+  tot[0] += pkg; tot[1] += gw; tot[2] += mtq;
+  }
+  newPage(); total(105.8, "GRAND TOTAL:", .753, tot[0], Math.round(tot[1] * 1000) / 1000, Math.round(tot[2] * 1000) / 1000);
   let nAtt = 0;
   for (const [no, at] of ends.reverse())                   // last B/L first; the cover is page 0, so MF page n is index n
     for (const [src, i] of [...(att[no] || [])].reverse()) { const [pg] = await doc.copyPages(src, [i]); doc.insertPage(at + 1, pg); nAtt++; }
@@ -892,13 +901,13 @@ async function buildPdfGroups(summ, sumBytes, att) {
 async function buildSplit(main, summ, sumBytes, gate, att) {
   const out = [], date = printDate(), mf = mfFiles(), xlsCn = cnFiles().find(f => !f.lines);
   if (mf.length === 1 && !mf[0].lines) {
-    const { vessel, pol, pod, blocks } = readBlocks(mf[0].bytes);
+    const { vessel, pols, pod, blocks } = readBlocks(mf[0].bytes), pol = Object.values(pols)[0] || "";
     const rows = summ.filter(x => x.bls && !x.empty);
     for (const [i, x] of rows.entries()) {
       const g = x.g, name = g.replace(/^TH(?=[A-Z]{3}$)/, ""), th = /^TH[A-Z]{3}$/.test(g);
       const info = { vessel, pol, pod, podc: main, date, place: th ? g : main,
                      note: g === "THLKR" ? `LKB ${gateText(gate)}` : "", podNote: th && g !== main && g !== "THLKR" ? `/ ${name}` : "" };
-      const r = await buildMfGroup(sumBytes, i, info, x.nos.filter(n => blocks[n]), blocks, att);
+      const r = await buildMfGroup(sumBytes, i, info, x.nos.filter(n => blocks[n]), blocks, att, pols);
       out.push({ name: `MF-${name}.pdf`, bytes: r.bytes, nAtt: r.nAtt });
     }
   }

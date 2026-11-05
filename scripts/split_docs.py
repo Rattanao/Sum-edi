@@ -24,22 +24,23 @@ HEADER_ROWS = ("CARGO MANIFEST", "VESSEL & VOYAGE", "PORT OF LOADING", "BILL OF 
 
 
 def read_blocks(path):
-    """MANIFEST .xls -> vessel, port of loading, port of discharge, {B/L: [rows of 4 texts]} (SHED column left out)"""
+    """MANIFEST .xls -> vessel, {B/L: port of loading of its MF page}, port of discharge,
+    {B/L: [rows of 4 texts]} (SHED column left out). The MF may hold several ports of loading, one PORT TOTAL each."""
     s = xlrd.open_workbook(path, logfile=open(os.devnull, "w")).sheet_by_index(0)
-    blocks, cur, vessel, pol, pod = {}, None, "", "", ""
+    blocks, pols, cur, vessel, pol, pod = {}, {}, None, "", "", ""
     for r in range(s.nrows):
         v = [str(x).replace("\t", " ").rstrip() for x in s.row_values(r)] + [""] * 23
         line = " ".join(x for x in v if x.strip())
         if v[0] == "VESSEL & VOYAGE": vessel = vessel or v[2].strip()
-        if v[0] == "PORT OF LOADING": pol, pod = pol or v[2].strip(), pod or v[8].strip()
+        if v[0] == "PORT OF LOADING": pol, pod = v[2].strip(), pod or v[8].strip()
         if "PORT TOTAL" in line or "GRAND TOTAL" in line: cur = None; continue
         if v[0].strip() in HEADER_ROWS or v[10].strip() == "CARGO MANIFEST" or v[0].startswith("PortOfDischarge"): continue
         if S.BLRE.match(v[0].strip()):
-            cur = v[0].strip(); blocks[cur] = []
+            cur = v[0].strip(); blocks[cur] = []; pols[cur] = pol
         if cur is None: continue
         row = [v[0].strip(), (v[5] or v[6]).strip(), v[10].strip(), v[16].strip()]
         if any(row): blocks[cur].append(row)
-    return vessel, pol, pod, blocks
+    return vessel, pols, pod, blocks
 
 
 _FONT = {}
@@ -107,35 +108,46 @@ class Pdf:
             self.t(276.0, top + dy, k, right=True); self.t(279.5, top + dy, val)
 
 
-def write_group(path, info, nos, blocks, cover=None, att=None):
+def write_group(path, info, nos, blocks, cover=None, att=None, pols=None):
     """MF pages of one DELIVERY; cover = (SUMMARY doc, page no.) put in front as the cover sheet;
-    att = {B/L: [(doc, page)]} ATTACHED pages put right after the MF page where that B/L ends"""
+    att = {B/L: [(doc, page)]} ATTACHED pages put right after the MF page where that B/L ends;
+    pols = {B/L: port of loading}: one section per port of loading as in the MF (new page, its POL in the header,
+    its own PORT TOTAL), then the GRAND TOTAL page"""
     p = Pdf(info)
-    y = p.new_page()
-    pkg = gw = mtq = 0
-    ends = []                                  # (B/L, MF page where it ends)
+    sections = []                              # [(port of loading, [B/L])] in MF order
     for no in nos:
-        rows = blocks[no]
-        first = rows[0]
-        m = re.match(r"([\d,]+)\s", first[2]); pkg += int(m.group(1).replace(",", "")) if m else 0
-        for r in rows:
-            m = re.match(r"([\d,.]+)\s*(KGM|MTQ)", r[3])
-            if m:
-                if m.group(2) == "KGM": gw += S.num(m.group(1))
-                else: mtq += S.num(m.group(1))
-        if y + (len(rows) - 1) * PITCH > BOTTOM and y > 150: y = p.new_page()
-        p.dash(y - 10.2)
-        for r in rows:
-            for x, s in zip(COLS, r[:3]):
-                if s: p.t(x, y, s, "t")
-            if r[3]: p.t(RIGHT, y, r[3], "t", right=True)
-            y += PITCH
-        y += GAP - PITCH          # next B/L baseline = last baseline + GAP
-        ends.append((no, p.n))
-    last = y - GAP
-    if last + 7.4 + 50.1 > BOTTOM + 8:
-        p.new_page(); last = 116.7 - 7.4
-    p.total(last + 7.4, "PORT TOTAL:", 0.878, pkg, gw, mtq)
+        pl = (pols or {}).get(no, info["pol"])
+        if not sections or sections[-1][0] != pl: sections.append((pl, []))
+        sections[-1][1].append(no)
+    tot = [0, 0.0, 0.0]                        # pkg, gw, mtq of the whole DELIVERY
+    ends = []                                  # (B/L, MF page where it ends)
+    for pl, sec in sections:
+        info["pol"] = pl
+        y = p.new_page()
+        pkg = gw = mtq = 0
+        for no in sec:
+            rows = blocks[no]
+            m = re.match(r"([\d,]+)\s", rows[0][2]); pkg += int(m.group(1).replace(",", "")) if m else 0
+            for r in rows:
+                m = re.match(r"([\d,.]+)\s*(KGM|MTQ)", r[3])
+                if m:
+                    if m.group(2) == "KGM": gw += S.num(m.group(1))
+                    else: mtq += S.num(m.group(1))
+            if y + (len(rows) - 1) * PITCH > BOTTOM and y > 150: y = p.new_page()
+            p.dash(y - 10.2)
+            for r in rows:
+                for x, s in zip(COLS, r[:3]):
+                    if s: p.t(x, y, s, "t")
+                if r[3]: p.t(RIGHT, y, r[3], "t", right=True)
+                y += PITCH
+            y += GAP - PITCH          # next B/L baseline = last baseline + GAP
+            ends.append((no, p.n))
+        last = y - GAP
+        if last + 7.4 + 50.1 > BOTTOM + 8:
+            p.new_page(); last = 116.7 - 7.4
+        p.total(last + 7.4, "PORT TOTAL:", 0.878, pkg, gw, mtq)
+        tot = [tot[0] + pkg, tot[1] + gw, tot[2] + mtq]
+    pkg, gw, mtq = tot
     p.new_page()
     p.total(105.8, "GRAND TOTAL:", 0.753, pkg, gw, mtq)
     n_att = 0
@@ -345,18 +357,18 @@ def write_all(out, mf, cn, main_code, summ, summary_pdf, gate, att=None):
     lines = []
     xls = [f for f in mf if re.search(r"\.xlsx?$", f, re.I)]
     if len(mf) == 1 and xls:
-        vessel, pol, pod, blocks = read_blocks(xls[0])
+        vessel, pols, pod, blocks = read_blocks(xls[0])
         rows = [x for x in summ if x["bls"] and not x.get("empty")]
         sdoc = pymupdf.open(summary_pdf)
         for i, x in enumerate(rows):
             g = x["g"]
             name = re.sub(r"^TH(?=[A-Z]{3}$)", "", g)
             terminal = re.fullmatch(r"TH[A-Z]{3}", g) and g not in (main_code, "THLKR")
-            info = dict(vessel=vessel, pol=pol, pod=pod, podc=main_code, date=date,
+            info = dict(vessel=vessel, pol=next(iter(pols.values()), ""), pod=pod, podc=main_code, date=date,
                         place=g if re.fullmatch(r"TH[A-Z]{3}", g) else main_code,
                         note=f"LKB {S.gate_text(gate)}" if g == "THLKR" else "", pod_note=f"/ {name}" if terminal else "")
             nos = [n for n in x["nos"] if n in blocks]
-            pkg, gw, mtq, n, na = write_group(os.path.join(out, f"MF-{name}.pdf"), info, nos, blocks, (sdoc, i), att)
+            pkg, gw, mtq, n, na = write_group(os.path.join(out, f"MF-{name}.pdf"), info, nos, blocks, (sdoc, i), att, pols)
             lines.append(f"MF-{name}.pdf  SUMMARY + {n} pages{f' + {na} ATTACHED' if na else ''}  {len(nos)} B/L  "
                          f"{pkg:,} PKGS  {gw:,.3f} KGM  {mtq:,.3f} MTQ")
         sdoc.close()
