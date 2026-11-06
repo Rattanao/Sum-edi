@@ -133,7 +133,9 @@ def run_checks(mf, cn, port, vessel="", all_bls=(), attached=()):
             x = cnt.get(c)
             if not x: continue
             dg_by_cntr.setdefault(c, []).append((no, dg))
-            if x["shed"] and b["shed"] and x["shed"] != b["shed"].zfill(4):
+            # a consolidated container has one SHED in CNTRS: fine when it is the SHED of any of its B/L (LAOS 0124)
+            sheds_c = {o["shed"].zfill(4) for o in bls.values() if c in o["cntrs"] and o["shed"]}
+            if x["shed"] and b["shed"] and x["shed"] != b["shed"].zfill(4) and x["shed"] not in sheds_c:
                 add("ผิด", f"{no} / {c}", f"SHED NO. ใน MF {b['shed']} ไม่ตรงกับ SHED NUMBER ใน CNTRS {x['shed']}")
             if len(set(b["types"])) == 1:
                 csz = "20" if "(20')" in x["size"] else "40" if "(40')" in x["size"] else ""

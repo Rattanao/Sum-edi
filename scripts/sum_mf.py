@@ -281,10 +281,17 @@ def summarize(bls, main, cn_list):
     groups = {}
     for no, b in bls.items(): groups.setdefault(group_of(b, main, cn_list), []).append(no)
     order = ORDER + [g for g in groups if g not in ORDER]
+    # a consolidated container shared by B/L of several rows is counted once: in the transit / TRANSHIPMENT row
+    # (e.g. HLHU8581485: 6 BKK house B/L + 1 LAOS B/L -> LAOS), else in the first row
+    rows_of = {}
+    for g in [g for g in order if g in groups]:
+        for n in groups[g]:
+            for c in bls[n]["cntrs"]: rows_of.setdefault(c, []).append(g)
+    owner = {c: next((g for g in gs if g in TRANSIT or g == "TRANSHIPMENT"), gs[0]) for c, gs in rows_of.items()}
     summ = []
     for g in [g for g in order if g in groups]:
         nos = groups[g]
-        cn = {c for n in nos for c in bls[n]["cntrs"]}
+        cn = {c for n in nos for c in bls[n]["cntrs"] if owner[c] == g}
         summ.append(dict(g=g, nos=nos, bls=len(nos), cntrs=len(cn),
                          n20=sum(size.get(c) == "20'" for c in cn), n40=sum(size.get(c) == "40'" for c in cn),
                          gw=round(sum(bls[n]["gw"] for n in nos), 3), pkg=sum(bls[n]["pkg"] for n in nos)))

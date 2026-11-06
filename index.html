@@ -165,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-05a</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-06a</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -403,8 +403,13 @@ function summarize(bls, main, cn) {
   const groups = {};
   for (const [no, b] of Object.entries(bls)) (groups[groupOf(b)] ||= []).push(no);
   const order = [...ORDER, ...Object.keys(groups).filter(g => !ORDER.includes(g))].filter(g => groups[g]);
+  // a consolidated container shared by B/L of several rows is counted once: in the transit / TRANSHIPMENT row
+  // (e.g. HLHU8581485: 6 BKK house B/L + 1 LAOS B/L -> LAOS), else in the first row
+  const rowsOf = {};
+  for (const g of order) for (const n of groups[g]) for (const c of bls[n].cntrs) (rowsOf[c] ||= []).push(g);
+  const owner = Object.fromEntries(Object.entries(rowsOf).map(([c, gs]) => [c, gs.find(g => TRANSIT.has(g) || g === "TRANSHIPMENT") || gs[0]]));
   const summ = order.map(g => {
-    const nos = groups[g], cs = new Set(nos.flatMap(n => bls[n].cntrs));
+    const nos = groups[g], cs = new Set(nos.flatMap(n => bls[n].cntrs).filter(c => owner[c] === g));
     return { g, nos, bls: nos.length, cntrs: cs.size,
              n20: [...cs].filter(c => size[c] === 20).length, n40: [...cs].filter(c => size[c] === 40).length,
              gw: Math.round(nos.reduce((s, n) => s + bls[n].gw, 0) * 1000) / 1000, pkg: nos.reduce((s, n) => s + bls[n].pkg, 0) };
@@ -1087,7 +1092,9 @@ function runChecks(port, vessel = "", allBls = {}, attPages = []) {
     for (const c of b.cntrs) {                               // MF against CNTRS, container by container
       const x = cnt[c]; if (!x) continue;
       (dgByCntr[c] ||= []).push([no, dg]);
-      if (x.shed && b.shed && x.shed !== b.shed.padStart(4, "0")) add("ผิด", `${no} / ${c}`, `SHED NO. ใน MF ${b.shed} ไม่ตรงกับ SHED NUMBER ใน CNTRS ${x.shed}`);
+      // a consolidated container has one SHED in CNTRS: fine when it is the SHED of any of its B/L (LAOS 0124)
+      const shedsC = new Set(Object.values(bls).filter(o => o.cntrs.includes(c) && o.shed).map(o => o.shed.padStart(4, "0")));
+      if (x.shed && b.shed && x.shed !== b.shed.padStart(4, "0") && !shedsC.has(x.shed)) add("ผิด", `${no} / ${c}`, `SHED NO. ใน MF ${b.shed} ไม่ตรงกับ SHED NUMBER ใน CNTRS ${x.shed}`);
       if (new Set(b.types).size === 1) {
         const csz = x.size.includes("(20')") ? "20" : x.size.includes("(40')") ? "40" : "";
         if (csz && (b.types[0][0] === "2") !== (csz === "20")) add("ผิด", `${no} / ${c}`, `ขนาดตู้ใน MF ${b.types[0]} ไม่ตรงกับ CNTRS ${x.size}`);
