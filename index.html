@@ -165,7 +165,7 @@
     <div class="page" id="vPage"></div>
   </div>
 </main>
-<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-06a</footer>
+<footer><a href="https://github.com/Rattanao/Sum-edi">github.com/Rattanao/Sum-edi</a> · เวอร์ชัน 2026-11-08a</footer>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
@@ -448,17 +448,20 @@ function pen(page, fonts) {
   return {
     // x, y = baseline from the top-left, like scripts/sum_mf.py
     // max = widest the text may be; longer text is drawn smaller so it stays inside the page
-    text(x, y, s, size, { font = fonts.r, right = false, underline = false, max = 0 } = {}) {
+    text(x, y, s, size, { font = fonts.r, right = false, underline = false, max = 0, color = PDFLib.rgb(0, 0, 0) } = {}) {
       let w = font.widthOfTextAtSize(s, size);
       if (max && w > max) { size *= max / w; w = max; }
       if (right) x -= w;
-      page.drawText(s, { x, y: H - y, size, font });
-      if (underline) page.drawLine({ start: { x, y: H - y - 1.5 }, end: { x: x + w, y: H - y - 1.5 }, thickness: .5 });
+      page.drawText(s, { x, y: H - y, size, font, color });
+      if (underline) page.drawLine({ start: { x, y: H - y - 1.5 }, end: { x: x + w, y: H - y - 1.5 }, thickness: .5, color });
       return w;
     },
-    line(x0, y0, x1, y1, thickness = .7, dashed = false, gray = 0) {
+    line(x0, y0, x1, y1, thickness = .7, dashed = false, gray = 0, color = null) {
       page.drawLine({ start: { x: x0, y: H - y0 }, end: { x: x1, y: H - y1 }, thickness,
-                      color: PDFLib.rgb(gray, gray, gray), ...(dashed ? { dashArray: [1, 1.5] } : {}) });
+                      color: color || PDFLib.rgb(gray, gray, gray), ...(dashed ? { dashArray: [1, 1.5] } : {}) });
+    },
+    box(x0, y0, x1, y1, color, thickness = .7) {
+      page.drawRectangle({ x: x0, y: H - y1, width: x1 - x0, height: y1 - y0, borderColor: color, borderWidth: thickness });
     },
     image(ref, x, y, w, h) { page.drawImage(ref, { x, y: H - y - h, width: w, height: h }); },
   };
@@ -527,11 +530,11 @@ async function buildSummary(vessel, port, main, summ) {
 async function buildSumEdi(vessel, port, summ, T, soc, staff) {
   const doc = await PDFLib.PDFDocument.create();
   const fonts = { r: await doc.embedFont(PDFLib.StandardFonts.TimesRoman), b: await doc.embedFont(PDFLib.StandardFonts.TimesRomanBold),
-                  a: await doc.embedFont(PDFLib.StandardFonts.HelveticaBold) };
+                  a: await doc.embedFont(PDFLib.StandardFonts.HelveticaBold), h: await doc.embedFont(PDFLib.StandardFonts.Helvetica) };
   const p = pen(doc.addPage([595, 842]), fonts);
-  const lh = await fetch("assets/letterhead.jpg").then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
-    .catch(() => { throw new Error("โหลดหัวจดหมาย assets/letterhead.jpg ไม่ได้ — เปิดหน้านี้ผ่าน https://rattanao.github.io/Sum-edi/"); });
-  p.image(await doc.embedJpg(lh), 45, 52, 505, 102);
+  const lh = await fetch("assets/letterhead.png").then(r => { if (!r.ok) throw new Error(); return r.arrayBuffer(); })
+    .catch(() => { throw new Error("โหลดหัวจดหมาย assets/letterhead.png ไม่ได้ — เปิดหน้านี้ผ่าน https://rattanao.github.io/Sum-edi/"); });
+  p.image(await doc.embedPng(lh), 45, 48, 505, 109);     // colour letterhead, cleaned to the brand colours
   const A = { font: fonts.a };
   [["AGENT  NAME  :", AGENT1], ["TAX ID:", "0993000456955"], ["VESSEL  :", vessel], ["DISCHARGE :", port]].forEach(([k, v], i) => {
     const y = 194 + i * 21;
@@ -588,14 +591,23 @@ async function buildSumEdi(vessel, port, summ, T, soc, staff) {
     p.text(237, yg, "CNTRS", 9.5, { ...A, underline: true });
     yb = yg + 20;
   }
-  yb = Math.max(yb + 14, 700);
-  p.text(54, yb, "DATA SUBMITTED TO THE PORT BY ........................", 9);
-  p.text(54, yb + 19, "1.  EDI", 9); p.text(54, yb + 38, "2.  E-MAIL", 9);
-  [staff.name, staff.position, staff.tel ? `TEL:   ${staff.tel}` : ""].forEach((s, i) => {
-    if (!s.trim()) return;
-    const yy = yb + i * 19;
-    p.text(347, yy, s, 9, { max: 190 }); p.line(345, yy + 5, 530, yy + 5, .5, true);
+  // footer in the letterhead's colours: a navy rule like the one under the letterhead, Helvetica navy / blue
+  const BLUE = PDFLib.rgb(22 / 255, 84 / 255, 178 / 255), NAVY = PDFLib.rgb(24 / 255, 52 / 255, 132 / 255), LIGHT = PDFLib.rgb(150 / 255, 175 / 255, 215 / 255);
+  yb = Math.max(yb + 14, 706);
+  p.line(51, yb - 18, 541, yb - 18, .8, false, 0, NAVY);
+  p.text(54, yb, "DATA SUBMITTED TO THE PORT BY", 8.5, { font: fonts.a, color: NAVY });
+  ["EDI", "E-MAIL"].forEach((t, i) => {
+    const y = yb + 19 + i * 17;
+    p.box(56, y - 6.5, 62.5, y, BLUE);
+    p.text(70, y, `${i + 1}.  ${t}`, 8.5, { font: fonts.h, color: NAVY });
   });
+  p.line(330, yb - 8, 330, yb + 42, .6, false, 0, LIGHT);
+  [[staff.name, fonts.a, 9.5, BLUE], [staff.position, fonts.h, 8.5, NAVY], [staff.tel ? `TEL:  ${staff.tel}` : "", fonts.h, 8.5, NAVY]]
+    .forEach(([s, font, size, color], i) => {
+      if (!s.trim()) return;
+      const yy = yb + i * 17;
+      p.text(345, yy, s, size, { font, color, max: 190 }); p.line(345, yy + 4.5, 538, yy + 4.5, .5, true, 0, LIGHT);
+    });
   return doc.save();
 }
 

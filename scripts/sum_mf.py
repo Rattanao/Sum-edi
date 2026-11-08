@@ -14,7 +14,7 @@ import xlrd, pymupdf
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(HERE, "..", "assets")
-LETTERHEAD = os.path.join(ASSETS, "letterhead.jpg")
+LETTERHEAD = os.path.join(ASSETS, "letterhead.png")   # colour letterhead, cleaned to the brand colours
 SIGNATURE = os.path.join(ASSETS, "signature.png")  # local only, not in git
 
 BLRE = re.compile(r"^HASL[A-Z0-9]{10,16}$")  # up to 3-letter house suffix: HASLC01261001955ZZA
@@ -327,21 +327,22 @@ def summarize(bls, main, cn_list):
 # ---------------------------------------------------------------- drawing
 TIMES, TIMESB = r"C:\Windows\Fonts\times.ttf", r"C:\Windows\Fonts\timesbd.ttf"
 FONTFILES = {"tr": TIMES, "tb": TIMESB, "th": r"C:\Windows\Fonts\tahoma.ttf", "thb": r"C:\Windows\Fonts\tahomabd.ttf",
-             "ab": r"C:\Windows\Fonts\arialbd.ttf"}
+             "ab": r"C:\Windows\Fonts\arialbd.ttf", "ar": r"C:\Windows\Fonts\arial.ttf"}
+BLUE, NAVY, LIGHT = (22 / 255, 84 / 255, 178 / 255), (24 / 255, 52 / 255, 132 / 255), (150 / 255, 175 / 255, 215 / 255)  # letterhead
 HALRE = re.compile(r"HEUNG[\s-]*A\b", re.I)
 AGENT1 = "HEUNG A LINE CO., LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD."
 AGENT2 = "HEUNG A LINE CO.,LTD C/O HEUNG-A SHIPPING (THAILAND) CO.,LTD."
 AGENT_BKK = "HEUNG A LINE CO.,LTD. C/O HEUNG A LINE (THAILAND) CO.,LTD."   # as in the BANGKOK / UNITHAI form
 
 
-def text(pg, x, y, s, size=8, bold=False, right=False, underline=False, font=None, maxw=0):
+def text(pg, x, y, s, size=8, bold=False, right=False, underline=False, font=None, maxw=0, color=(0, 0, 0)):
     """maxw = widest the text may be; longer text is drawn smaller so it stays inside the page"""
     fn = font or ("tb" if bold else "tr"); ff = FONTFILES[fn]
     w = pymupdf.Font(fontfile=ff).text_length(s, size)
     if maxw and w > maxw: size *= maxw / w; w = maxw
     if right: x -= w
-    pg.insert_text((x, y), s, fontsize=size, fontname=fn, fontfile=ff)
-    if underline: pg.draw_line((x, y + 1.5), (x + w, y + 1.5), width=0.5)
+    pg.insert_text((x, y), s, fontsize=size, fontname=fn, fontfile=ff, color=color)
+    if underline: pg.draw_line((x, y + 1.5), (x + w, y + 1.5), width=0.5, color=color)
     return w
 
 
@@ -407,7 +408,7 @@ def write_summary(path, vessel_name, port, main, summ, gate=""):
 
 def write_sum_edi(path, vessel, port, summ, T, soc, staff):
     doc = pymupdf.open(); pg = doc.new_page(width=595, height=842)
-    pg.insert_image(pymupdf.Rect(45, 52, 45 + 505, 52 + 102), filename=LETTERHEAD)
+    pg.insert_image(pymupdf.Rect(45, 48, 45 + 505, 48 + 109), filename=LETTERHEAD)
     for i, (k, v) in enumerate((("AGENT  NAME  :", AGENT1), ("TAX ID:", "0993000456955"), ("VESSEL  :", vessel),
                                 ("DISCHARGE :", port))):
         y = 194 + i * 21
@@ -464,14 +465,22 @@ def write_sum_edi(path, vessel, port, summ, T, soc, staff):
         text(pg, 232, yg, f"{T['cntrs'] + sum(len(s['cntrs']) for s in soc)}", 9.5, right=True, font="ab", underline=True)
         text(pg, 237, yg, "CNTRS", 9.5, font="ab", underline=True)
         yb = yg + 20
-    yb = max(yb + 14, 700)
-    text(pg, 54, yb, "DATA SUBMITTED TO THE PORT BY ........................", 9, font="tr")
-    text(pg, 54, yb + 19, "1.  EDI", 9, font="tr"); text(pg, 54, yb + 38, "2.  E-MAIL", 9, font="tr")
-    for i, t in enumerate((staff["name"], staff["position"], f"TEL:   {staff['tel']}")):
-        if not t.strip() or t.strip() == "TEL:": continue
-        y = yb + i * 19
-        text(pg, 347, y, t, 9, font="tr", maxw=190)
-        pg.draw_line((345, y + 5), (530, y + 5), width=0.5, dashes="[2 1] 0")
+    # footer in the letterhead's colours: a navy rule like the one under the letterhead, Arial navy / blue
+    yb = max(yb + 14, 706)
+    pg.draw_line((51, yb - 18), (541, yb - 18), width=0.8, color=NAVY)
+    text(pg, 54, yb, "DATA SUBMITTED TO THE PORT BY", 8.5, font="ab", color=NAVY)
+    for i, t in enumerate(("EDI", "E-MAIL")):
+        y = yb + 19 + i * 17
+        pg.draw_rect(pymupdf.Rect(56, y - 6.5, 62.5, y), color=BLUE, width=0.7)
+        text(pg, 70, y, f"{i + 1}.  {t}", 8.5, font="ar", color=NAVY)
+    pg.draw_line((330, yb - 8), (330, yb + 42), width=0.6, color=LIGHT)
+    rows = [(staff["name"], "ab", 9.5, BLUE), (staff["position"], "ar", 8.5, NAVY),
+            (f"TEL:  {staff['tel']}" if staff["tel"].strip() else "", "ar", 8.5, NAVY)]
+    for i, (t, f, sz, col) in enumerate(rows):
+        if not t.strip(): continue
+        y = yb + i * 17
+        text(pg, 345, y, t, sz, font=f, maxw=190, color=col)
+        pg.draw_line((345, y + 4.5), (538, y + 4.5), width=0.5, dashes="[1 1.5] 0", color=LIGHT)
     doc.subset_fonts(); doc.save(path, garbage=4, deflate=True)
 
 
