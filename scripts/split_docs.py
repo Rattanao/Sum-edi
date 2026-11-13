@@ -173,6 +173,11 @@ def words(n):
     return f"{ONES[n // 100]} HUNDRED" + (f" {words(n % 100)}" if n % 100 else "")
 
 
+def cell_text(x):
+    """a number Excel shows with thousands separators in REMARK: 11701197.0 -> 11,701,197"""
+    return f"{int(x):,}" if isinstance(x, float) and x.is_integer() else str(x).strip()
+
+
 def read_cntrs_rows(path):
     """CNTRS .xls -> header, [container rows with their SHED NUMBER]"""
     s = xlrd.open_workbook(path, logfile=open(os.devnull, "w")).sheet_by_index(0)
@@ -188,12 +193,16 @@ def read_cntrs_rows(path):
             m = re.match(r"\d+", v[2] or next((x for x in v[1:] if x), ""))
             shed, name, cur = (m.group(0).zfill(4) if m else ""), v[5], None
             continue
+        rem = " ".join(t for t in (cell_text(x) for x in s.row_values(r)[21:25]) if t)
         if re.fullmatch(r"[A-Z]{4}\d{7}", v[0]):
             cur = dict(cntr=v[0], type=v[3], size=v[7], cons=[v[9]], gw=float(v[15] or 0), status=v[18], pol=v[20],
-                       remark=" ".join(x for x in v[21:25] if x), shed=shed, shedname=name)
+                       rlines=[rem] if rem else [], shed=shed, shedname=name)
             rows.append(cur)
-        elif cur and not v[0] and v[9] and not v[3] and not v[15]: cur["cons"].append(v[9])   # 2nd consignee line
+        elif cur and not v[0] and not v[3] and not v[15] and (v[9] or rem):   # 2nd consignee line / more REMARK lines
+            if v[9]: cur["cons"].append(v[9])
+            if rem: cur["rlines"].append(rem)
         else: cur = None
+    for c in rows: c["remark"] = " ".join(c["rlines"])
     return head, rows
 
 
@@ -255,8 +264,9 @@ def cntrs_section(doc, head, deliv, sheds, tax, recv, date, note):
             tx(pg, 171.9, y, c["size"])
             for k, line in enumerate(c["cons"][:2]): tx(pg, 215.7, y + 9.2 * k, line)
             tx(pg, 489.9, y, f"{c['gw']:,.3f}", right=True); tx(pg, 493.9, y, "KGM")
-            tx(pg, 518.7, y, c["status"]); tx(pg, 563.0, y, c["pol"]); tx(pg, 598.4, y, c["remark"])
-            y += CPITCH
+            tx(pg, 518.7, y, c["status"]); tx(pg, 563.0, y, c["pol"])
+            for k, line in enumerate(c["rlines"]): tx(pg, 598.4, y + 9.2 * k, line)          # every REMARK line
+            y += CPITCH + 9.2 * max(0, len(c["rlines"]) - 2, min(len(c["cons"]), 3) - 2)
         lab = y - CPITCH + 30.1
         if lab + 34.3 > 556: pg = page(); lab = 123.1
         cntrs_totals(pg, lab, cs)

@@ -234,9 +234,15 @@ def read_cntrs_all(paths, discharge):
 def read_cntrs(path, discharge):
     """CNTRS container list -> {container: (size "20'"/"40'", consignee, empty, delivery, transit country in REMARK)}"""
     s = xlrd.open_workbook(path, logfile=open(os.devnull, "w")).sheet_by_index(0)
-    out, deliv, shed = {}, discharge, ""
+    out, deliv, shed, last = {}, discharge, "", None
     for r in range(s.nrows):
         v = [str(x).strip() for x in s.row_values(r)] + [""] * 31
+        # REMARK may go on over the next rows (TRANSIT TO MYANMAR on the 2nd line): look there for the transit country
+        if last and not v[0] and not v[3] and not v[15]:
+            t = TRANSITRE.search(" ".join(v[20:]))
+            if t and not out[last][4]: out[last] = out[last][:4] + (t.group(1),)
+            continue
+        last = None
         if "Port Of Delivery" in v:
             deliv = next((x for x in v[v.index("Port Of Delivery") + 1:] if x), discharge).upper()
         if v[0].startswith("SHED NUMBER"):
@@ -248,8 +254,10 @@ def read_cntrs(path, discharge):
         status = next((x for x in v[15:23] if re.match(r"\d=", x)), "")
         d = SHED_DELIVERY.get(shed, deliv) if deliv == discharge else deliv
         t = TRANSITRE.search(" ".join(v[20:]))
-        out.setdefault(v[0], ("20'" if size == "20" else "40'", v[9], bool(re.match(r"4=", status) or "MTY" in status), d,
-                              t.group(1) if t else ""))
+        if v[0] not in out:
+            out[v[0]] = ("20'" if size == "20" else "40'", v[9], bool(re.match(r"4=", status) or "MTY" in status), d,
+                         t.group(1) if t else "")
+            last = v[0]
     return out
 
 
