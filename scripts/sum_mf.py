@@ -133,10 +133,12 @@ def read_mf_pdf(path):
         m = re.match(r"^(HASL[A-Z0-9]{10,16})\b", l)
         if m:
             cur = m.group(1); bls[cur] = b = new_bl()
-            m = re.search(r"\b(\d[\d,]*)\s+[A-Z]{2}\s*\(", l)
+            m = re.search(r"\b(\d[\d,]*)\s+[A-Z0-9]{2}\s*\(", l)
             if m: b["pkg"] = int(num(m.group(1)))
         if cur is None: continue
-        if re.match(r"(PortOfDischarge|VESSEL & VOYAGE|.*PORT TOTAL|.*GRAND TOTAL)", l): cur = None; continue
+        if re.match(r"(.*PORT TOTAL|.*GRAND TOTAL)", l): cur = None; continue
+        if re.match(r"(PortOfDischarge|VESSEL & VOYAGE|PORT OF LOADING|BILL OF LANDING|1\) SHIPPER|3\) NOTIFY|CARGO MANIFEST)", l):
+            continue                         # page footer / header: the B/L may go on on the next page
         b = bls[cur]
         m = re.search(r"([\d,]+\.\d+)\s*KGM", l)
         if m and not b["gw"]: b["gw"] = num(m.group(1))
@@ -182,10 +184,12 @@ def read_mf(path):
             cur = v[0]
             bls[cur] = new_bl()
         if cur is None: continue
-        if v[0].startswith("PortOfDischarge") or "PORT TOTAL" in line or "GRAND TOTAL" in line:
-            cur = None; continue
+        if "PORT TOTAL" in line or "GRAND TOTAL" in line: cur = None; continue
+        if v[0].startswith("PortOfDischarge") or v[0] in ("VESSEL & VOYAGE", "PORT OF LOADING", "BILL OF LANDING NO.",
+                                                          "1) SHIPPER", "3) NOTIFY PARTY") or v[10] == "CARGO MANIFEST":
+            continue                         # page footer / header: the B/L may go on on the next page
         b = bls[cur]
-        m = re.match(r"^([\d,]+)\s+[A-Z]{2}\b", v[10])
+        m = re.match(r"^([\d,]+)\s+[A-Z0-9]{2}\b", v[10])   # unit may hold a digit: 13 7B (CASE, WOODEN(s))
         if m and not b["pkg"]: b["pkg"] = int(num(m.group(1)))
         m = re.match(r"^([\d,.]+) KGM", v[16])
         if m and not b["gw"]: b["gw"] = num(m.group(1))
@@ -296,10 +300,13 @@ def summarize(bls, main, cn_list):
         for n in groups[g]:
             for c in bls[n]["cntrs"]: rows_of.setdefault(c, []).append(g)
     owner = {c: next((g for g in gs if g in TRANSIT or g == "TRANSHIPMENT"), gs[0]) for c, gs in rows_of.items()}
+    # SOC container in the manifest (another owner in CNTRS, M/F made by HEUNG A, e.g. DHDU2374117 DEN): taken out of
+    # its DELIVERY row's container count into its own row "SOC-DEN  1 X 20'  M/F BY HEUNG A"; B/L, weight, packages stay
+    socmf = {c: soc_owner(cn_list[c][1]) for c in rows_of if c in cn_list and not HALRE.search(cn_list[c][1])}
     summ = []
     for g in [g for g in order if g in groups]:
         nos = groups[g]
-        cn = {c for n in nos for c in bls[n]["cntrs"] if owner[c] == g}
+        cn = {c for n in nos for c in bls[n]["cntrs"] if owner[c] == g and c not in socmf}
         summ.append(dict(g=g, nos=nos, bls=len(nos), cntrs=len(cn),
                          n20=sum(size.get(c) == "20'" for c in cn), n40=sum(size.get(c) == "40'" for c in cn),
                          gw=round(sum(bls[n]["gw"] for n in nos), 3), pkg=sum(bls[n]["pkg"] for n in nos)))
@@ -325,6 +332,9 @@ def summarize(bls, main, cn_list):
     rank = {g: i for i, g in enumerate(ORDER)}
     summ.sort(key=lambda x: rank.get(x["g"], len(ORDER) - 1))
     if empty_l: summ.append(dict(g="EMPTY", empty=True, nos=sorted(empty_l), bls=0, gw=0.0, pkg=0, **count(empty_l)))
+    for o in sorted(set(socmf.values())):
+        cs = sorted(c for c, x in socmf.items() if x == o)
+        summ.append(dict(g=f"SOC-{o}", socmf=True, nos=cs, bls=0, gw=0.0, pkg=0, **count(cs)))
     soc = sorted((dict(owner=o, size=sz, cntrs=sorted(cs)) for (o, sz), cs in soc.items()),
                  key=lambda s: (s["owner"], s["size"]))
     nosize = sorted(c for c in in_mf if c not in size)
@@ -430,7 +440,12 @@ def write_sum_edi(path, vessel, port, summ, T, soc, staff):
     body = top + hh
     bottom = body + rh * nrows + 22
     pg.draw_rect(pymupdf.Rect(X[0], top, X[-1], bottom), width=0.8)
-    for x in X[1:-1]: pg.draw_line((x, top), (x, bottom), width=0.6)
+    gaps = [(body + rh * i, body + rh * (i + 1)) for i, x in enumerate(summ) if x.get("socmf")]
+    for x in X[1:-1]:                                 # SOC in the M/F row: B/L, GROSS WEIGHT, PKGS merged
+        y0 = top
+        for a, b in (gaps if x in (X[3], X[4]) else []):
+            pg.draw_line((x, y0), (x, a), width=0.6); y0 = b
+        pg.draw_line((x, y0), (x, bottom), width=0.6)
     for i in range(nrows + 1): pg.draw_line((X[0], body + rh * i), (X[-1], body + rh * i), width=0.6)
     pg.draw_line((X[0], bottom - 2), (X[-1], bottom - 2), width=0.6)          # double line under GRAND TOTAL
 
@@ -445,6 +460,7 @@ def write_sum_edi(path, vessel, port, summ, T, soc, staff):
         text(pg, X[0] + 3, y, label(x["g"]), 9, font="tb", maxw=X[1] - X[0] - 6)
         if x["n20"]: text(pg, 208, y, f"{x['n20']}   X 20'", 8.5, right=True, font="tb")
         if x["n40"]: text(pg, 268, y, f"{x['n40']}   X 40'", 8.5, right=True, font="tb")
+        if x.get("socmf"): ctext(X[2], X[5], y, "M/F BY HEUNG A")
         if x["bls"]:
             ctext(X[2], X[3], y, f"{x['bls']}")
             text(pg, X[4] - 6, y, f"{x['gw']:,.3f}", 8.5, right=True, font="tb")
@@ -532,6 +548,7 @@ def main():
     for x in summ:
         print(f"{label(x['g']):13} {x['n20']:>3}x20' {x['n40']:>3}x40' BL {x['bls']:>3} {x['gw']:>14,.3f} KGS {x['pkg']:>7,} PKGS")
         if x.get("extra"): print(f"              + HEUNG A not in MF: {', '.join(x['extra'])}")
+        if x.get("socmf"): print(f"              SOC in the M/F (M/F BY HEUNG A): {', '.join(x['nos'])}")
     print(f"GRAND TOTAL   {T['cntrs']} CNTRS  BL {T['bls']}  {T['gw']:,.3f}  {T['pkg']:,}")
     if soc: print("***SOC***")
     for s in soc: print(f"{s['owner']:13} {s['size']} : {len(s['cntrs'])} CNTRS")

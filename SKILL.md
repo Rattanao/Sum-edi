@@ -36,6 +36,7 @@ DELIVERY row of each B/L, in this order (rows with no containers and no B/L are 
 | MYANMAR, LAOS, MALAYSIA, CHINA, CAMBODIA | MF `3) CARGO MOVEMENT (7-TRANSIT)` and country `MM` / `LA` / `MY` / `CN` / `KH` |
 | TRANSHIPMENT | MF CARGO MOVEMENT contains TRANSHIPMENT |
 | EMPTY | HEUNG A containers in CNTRS, not in the MF, STATUS `4=MTY` (containers only) |
+| `SOC-<OWNER>` | containers in the MF whose CNTRS consignee is not HEUNG A (SOC, M/F made by HEUNG A): taken out of their DELIVERY row's container count; containers only, the B/L / weight / packages stay in the DELIVERY row; the B/L, GROSS WEIGHT and PKGS cells are merged (no lines) with `M/F BY HEUNG A`. Reference HEUNG-A HOCHIMINH 2613S: DHDU2374117 DEN → LCH 73x20' 51x40', `SOC-DEN 1 X 20'`, GRAND TOTAL 138 |
 
 - **Containers in CNTRS but not in the manifest** (MF container numbers are read from column F or G):
   - HEUNG A, not empty → counted in their DELIVERY row.
